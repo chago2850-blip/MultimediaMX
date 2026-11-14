@@ -1,0 +1,77 @@
+<!doctype html>
+<!-- MultimediaMX — Copyright (C) 2026 Santiago Miguel — GPL-3.0-or-later -->
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob: http: https:; media-src 'self' blob: data: http: https:; connect-src 'self' http://127.0.0.1:* https: http://localhost:* capacitor: ws:; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+  <meta name="theme-color" content="#0b0a18" />
+  <title>MultimediaMX</title>
+  <link rel="icon" href="./logo.svg" type="image/svg+xml" />
+</head>
+<body>
+  <div id="app" data-skin="aurora">
+    <header id="topbar">
+      <div class="brand"><img src="./logo.svg" alt="" width="30" height="30" /><span>Multimedia<b>MX</b></span></div>
+      <nav id="nav"></nav>
+      <label class="search"><span class="search-ic"></span><input id="search" type="search" autocomplete="off" spellcheck="false" /></label>
+      <div class="top-actions"><button id="skinBtn" class="icon-btn"></button></div>
+    </header>
+
+    <main id="main"><div id="view"></div></main>
+
+    <section id="stage" aria-label="Now playing">
+      <div class="stage-bg"><img alt="" /></div>
+      <button class="icon-btn stage-close" id="stageClose"></button>
+      <div class="stage-inner">
+        <div class="visual">
+          <div class="turntable">
+            <div class="platter"><div class="record"><div class="grooves"></div><div class="label"><img class="cover" alt="" /></div></div></div>
+            <div class="tonearm"><div class="arm"></div><div class="head"></div><div class="pivot"></div></div>
+          </div>
+          <div class="art"><canvas class="ring-viz"></canvas><div class="art-frame"><img class="cover" alt="" /><div class="art-fallback"></div></div></div>
+          <div class="video-wrap" id="videoWrap"><video id="video" playsinline preload="auto"></video><div class="subs" id="subs"></div></div>
+        </div>
+        <div class="np-meta">
+          <div class="np-title" id="npTitle"></div>
+          <div class="np-artist" id="npArtist"></div>
+          <div class="np-badges" id="npBadges"></div>
+        </div>
+        <div class="lyrics-home" id="lyricsHomeStage"></div>
+      </div>
+    </section>
+
+    <aside id="panel">
+      <div class="panel-tabs" id="panelTabs"></div>
+      <canvas id="spectrum" class="spectrum"></canvas>
+      <div class="panel-body" id="panelBody">
+        <div class="panel-page" data-page="queue" id="queuePage"></div>
+        <div class="panel-page" data-page="lyrics"><div class="lyrics-home" id="lyricsHomePanel"></div></div>
+        <div class="panel-page" data-page="eq" id="eqPage"></div>
+      </div>
+    </aside>
+
+    <footer id="bar">
+      <div class="bar-now" id="barNow">
+        <div class="bar-cover"><img alt="" /><span class="bar-cover-fallback"></span></div>
+        <div class="bar-text"><div class="bar-title" id="barTitle"></div><div class="bar-artist" id="barArtist"></div></div>
+      </div>
+      <div class="bar-center">
+        <div class="bar-controls" id="barControls"></div>
+        <div class="seek-row">
+          <span class="time" id="tCur">0:00</span>
+          <div class="seek" id="seek"><div class="seek-track"><div class="seek-buf" id="seekBuf"></div><div class="seek-fill" id="seekFill"></div></div><div class="seek-thumb" id="seekThumb"></div><div class="seek-tip" id="seekTip"></div></div>
+          <span class="time" id="tDur">0:00</span>
+        </div>
+      </div>
+      <div class="bar-right" id="barRight"></div>
+    </footer>
+
+    <div id="lyrics" class="lyrics"></div>
+  </div>
+  <div id="drop"><div></div></div>
+  <div id="toast" role="status"></div>
+  <div id="modal"></div>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

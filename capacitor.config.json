@@ -1,0 +1,12 @@
+{
+  "appId": "mx.multimediamx.player",
+  "appName": "MultimediaMX",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": true,
+    "backgroundColor": "#0b0a18"
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}

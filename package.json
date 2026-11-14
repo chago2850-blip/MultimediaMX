@@ -1,0 +1,159 @@
+{
+  "name": "multimediamx",
+  "productName": "MultimediaMX",
+  "version": "1.0.0",
+  "description": "Reproductor multimedia libre y elegante: audio, video, listas M3U, ecualizador de 10 bandas y letras sincronizadas.",
+  "author": {
+    "name": "Santiago Miguel",
+    "email": "chago2850@gmail.com"
+  },
+  "license": "GPL-3.0-or-later",
+  "homepage": "https://github.com/chago2850-blip/MultimediaMX",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chago2850-blip/MultimediaMX.git"
+  },
+  "type": "module",
+  "main": "electron/main.mjs",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "start": "vite build && electron .",
+    "icons": "node scripts/make-icons.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "dist": "vite build && electron-builder --publish never",
+    "dist:linux": "vite build && electron-builder --linux --publish never",
+    "dist:win": "vite build && electron-builder --win --publish never",
+    "dist:mac": "vite build && electron-builder --mac --publish never",
+    "android:sync": "vite build && npx cap sync android"
+  },
+  "dependencies": {
+    "@capacitor/filesystem": "^8.1.5",
+    "ffmpeg-static": "^5.3.0",
+    "music-metadata": "^12.5.0"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^8.0.0",
+    "@capacitor/cli": "^8.0.0",
+    "@capacitor/core": "^8.0.0",
+    "@resvg/resvg-js": "^2.6.2",
+    "electron": "^45.0.0",
+    "electron-builder": "^26.0.0",
+    "vite": "^7.0.0"
+  },
+  "build": {
+    "appId": "mx.multimediamx.player",
+    "productName": "MultimediaMX",
+    "copyright": "Copyright © 2026 Santiago Miguel — GPL-3.0-or-later",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "src/core/m3u.js",
+      "build/icons/512x512.png",
+      "LICENSE",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "node_modules/ffmpeg-static/**"
+    ],
+    "fileAssociations": [
+      {
+        "ext": [
+          "mp3",
+          "flac",
+          "ogg",
+          "opus",
+          "m4a",
+          "aac",
+          "wav",
+          "wma",
+          "ape",
+          "aiff",
+          "alac",
+          "mka",
+          "ac3",
+          "dts"
+        ],
+        "name": "Audio",
+        "role": "Viewer"
+      },
+      {
+        "ext": [
+          "mp4",
+          "mkv",
+          "webm",
+          "avi",
+          "mov",
+          "wmv",
+          "flv",
+          "m4v",
+          "mpg",
+          "mpeg",
+          "ts",
+          "3gp",
+          "vob",
+          "ogv"
+        ],
+        "name": "Video",
+        "role": "Viewer"
+      },
+      {
+        "ext": [
+          "m3u",
+          "m3u8"
+        ],
+        "name": "Lista M3U",
+        "role": "Viewer"
+      }
+    ],
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "AudioVideo",
+      "icon": "build/icons",
+      "maintainer": "Santiago Miguel <chago2850@gmail.com>",
+      "synopsis": "Reproductor multimedia libre",
+      "syncDesktopName": true
+    },
+    "deb": {
+      "depends": [
+        "libnss3",
+        "libgtk-3-0",
+        "libasound2 | libasound2t64"
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "license": "LICENSE",
+      "artifactName": "${productName}-${version}-Windows-Setup.${ext}"
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.music",
+      "icon": "build/icon.icns",
+      "identity": null
+    },
+    "dmg": {
+      "artifactName": "${productName}-${version}-macOS-${arch}.${ext}"
+    },
+    "appImage": {
+      "artifactName": "${productName}-${version}-Linux-${arch}.${ext}"
+    }
+  },
+  "desktopName": "multimediamx.desktop"
+}
