@@ -89,7 +89,7 @@ export function removeFromLibrary(ids) {
 const enrichQueue = [];
 let enriching = 0;
 function enrich(tracks) {
-  enrichQueue.push(...tracks.filter((x) => !x.remote && !x.metaRead));
+  enrichQueue.push(...tracks.filter((x) => !x.remote && (!x.metaRead || (!x.duration && platform.canTranscode))));
   pump();
 }
 function pump() {
@@ -641,7 +641,7 @@ async function boot() {
   else await restoreSession().catch(() => {});
 
   // relee etiquetas pendientes
-  enrich(S.library.filter((x) => !x.metaRead && platform.name === 'desktop'));
+  enrich(S.library.filter((x) => platform.name === 'desktop' && (!x.metaRead || !x.duration)));
   document.body.classList.add('ready');
 }
 
