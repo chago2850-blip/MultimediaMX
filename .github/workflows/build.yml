@@ -8,6 +8,8 @@ on:
     tags: ['v*']
   pull_request:
   workflow_dispatch:
+  release:
+    types: [published]
 
 permissions:
   contents: write
@@ -110,6 +112,7 @@ jobs:
       - run: ls -la artifacts
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.ref_name }}
           name: MultimediaMX ${{ github.ref_name }}
           files: artifacts/*
           body: |
