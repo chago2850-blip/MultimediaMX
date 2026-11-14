@@ -77,7 +77,7 @@ npm run android:sync   # prepara el proyecto Android; luego: cd android && ./gra
 npm run icons          # regenera iconos a partir de public/logo.svg
 ```
 
-Para publicar una versión con todos los instaladores: en GitHub ve a **Releases → Draft a new release**, escribe la etiqueta `v1.0.0` y pulsa **Publish release** (o desde la terminal: `git tag v1.0.0 && git push origin v1.0.0`). En unos 10 minutos GitHub Actions compila y adjunta los instaladores de las cuatro plataformas.
+Para publicar una versión con todos los instaladores: en GitHub ve a **Releases → Draft a new release**, escribe la etiqueta `v1.0.0` y pulsa **Publish release** (o desde la terminal: `gh release create v1.0.0 --generate-notes`). En unos 10 minutos GitHub Actions compila y adjunta los instaladores de las cuatro plataformas.
 
 ### Estructura
 

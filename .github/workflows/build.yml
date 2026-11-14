@@ -1,11 +1,10 @@
 # MultimediaMX — compilación de instaladores para macOS, Windows, Linux y Android
-# Se ejecuta en cada push a main (artefactos) y publica un Release al subir una etiqueta v*.
+# Se ejecuta en cada push a main (artefactos) y adjunta los instaladores al publicar un Release.
 name: Instaladores
 
 on:
   push:
     branches: [main]
-    tags: ['v*']
   pull_request:
   workflow_dispatch:
   release:
@@ -103,7 +102,7 @@ jobs:
           if-no-files-found: error
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'release'
     needs: [desktop, android]
     runs-on: ubuntu-latest
     steps:
