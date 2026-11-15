@@ -242,7 +242,7 @@ function registerIpc() {
   ipcMain.handle('sidecars', (_e, p) => findSidecars(p));
   ipcMain.handle('extract-subtitle', (_e, { input, index }) => extractSubtitle(input, index));
   ipcMain.handle('http-get', async (_e, url) => {
-    if (!/^https:\/\//.test(url)) return { ok: false, status: 0 };
+    if (!/^https?:\/\//.test(url)) return { ok: false, status: 0 };
     try {
       const r = await net.fetch(url, { headers: { 'User-Agent': `MultimediaMX/${app.getVersion()} (https://github.com/chago2850-blip/MultimediaMX)` } });
       const text = await r.text();
@@ -315,7 +315,7 @@ else {
     session.defaultSession.webRequest.onHeadersReceived((details, cb) => {
       const h = details.responseHeaders || {};
       const has = Object.keys(h).some((k) => k.toLowerCase() === 'access-control-allow-origin');
-      if (!has && details.resourceType === 'media') h['Access-Control-Allow-Origin'] = ['*'];
+      if (!has && ['media', 'xhr', 'other'].includes(details.resourceType) && !details.url.startsWith('http://127.0.0.1')) h['Access-Control-Allow-Origin'] = ['*'];
       cb({ responseHeaders: h });
     });
     await startServer();

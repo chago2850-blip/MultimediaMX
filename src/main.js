@@ -6,6 +6,7 @@ import './styles/skins.css';
 import { kv, saveLater, DEFAULT_SETTINGS } from './core/store.js';
 import { platform, kindOf, baseName, extOf } from './core/platform.js';
 import { isUrl } from './core/m3u.js';
+import { expandRemoteLists, looksLikeM3U } from './core/remote.js';
 import { audio, PRESETS } from './core/audio.js';
 import { Player } from './core/player.js';
 import { t, setLang } from './i18n/index.js';
@@ -128,6 +129,7 @@ export function setCover(tr, dataUrl) {
 
 export async function coverOf(tr) {
   if (!tr) return null;
+  if (tr.logo && !S.covers.has(tr.src)) return tr.logo;
   if (S.covers.has(tr.src)) return S.covers.get(tr.src);
   if (!tr.hasCover) return null;
   const c = await kv.get(`cover:${tr.src}`).catch(() => null);
@@ -184,6 +186,7 @@ export async function importPlaylists() {
         remote: isUrl(src), missing: it.exists === false, logo: it.attrs?.['tvg-logo'] || null, group: it.group || null
       });
     }
+    await expandItems(items);
     last = createPlaylist(l.name, items);
   }
   if (last) {
@@ -203,7 +206,28 @@ export function toTrack(item) {
   return bySrc.get(item.src) || { id: uid(), ...item, kind: item.kind || kindOf(item.src) || 'audio', remote: isUrl(item.src) };
 }
 
-export function playList(items, index = 0, { shuffle = null } = {}) {
+/** Despliega las listas M3U en línea que haya dentro de items (modifica el arreglo). */
+export async function expandItems(items) {
+  if (!items.some((i) => looksLikeM3U(i.src) && !i.hls)) return 0;
+  toast(t('loadingRemoteList'), 15000);
+  const before = items.length;
+  const n = await expandRemoteLists(items, (u) => platform.httpGet(u));
+  if (n) toast(t('remoteListLoaded', { n: items.length - before + n }), 3500);
+  else toast(t('remoteListFailed'), 4500);
+  return n;
+}
+
+export async function playList(items, index = 0, { shuffle = null } = {}) {
+  if (items.some((i) => looksLikeM3U(i.src) && !i.hls)) {
+    const target = items[index];
+    const n = await expandItems(items);
+    if (n) {
+      if (S.playlists.some((p) => p.items === items)) { persist('playlists'); renderView(); }
+      const ni = items.indexOf(target);
+      index = ni >= 0 ? ni : 0;
+    }
+  }
+  if (!items.length) return;
   const tracks = items.map(toTrack);
   if (shuffle != null) { S.settings.shuffle = shuffle; player.setShuffle(shuffle); persist('settings'); renderBar(); }
   if (shuffle) index = Math.floor(Math.random() * tracks.length);
@@ -501,7 +525,9 @@ async function openPaths(paths, { play = true } = {}) {
     const e = extOf(p);
     if (e === 'm3u' || e === 'm3u8') {
       const l = await window.mmx.readPlaylist(p);
-      const pl = createPlaylist(l.name, l.items.map((it) => ({ src: it.location, title: it.title, artist: it.artist, duration: it.duration, kind: kindOf(it.location) || 'audio', remote: it.remote, missing: !it.exists })));
+      const its = l.items.map((it) => ({ src: it.location, title: it.title, artist: it.artist, duration: it.duration, kind: kindOf(it.location) || 'audio', remote: it.remote, missing: !it.exists }));
+      await expandItems(its);
+      const pl = createPlaylist(l.name, its);
       firstList = firstList || pl;
     } else if (kindOf(p)) entries.push({ src: p });
     else {
@@ -610,7 +636,7 @@ async function boot() {
     updateNowPlaying(e.detail?.probe);
   });
   player.addEventListener('queue', () => { import('./ui/views.js').then((m) => m.renderQueue()); saveSession(); });
-  player.addEventListener('error', (e) => toast(t(e.detail || 'failed'), 3500));
+  player.addEventListener('error', (e) => toast(t(e.detail || 'failed'), 4500));
   player.addEventListener('meta', () => paintTime());
 
   // estructura

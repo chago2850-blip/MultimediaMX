@@ -1,6 +1,6 @@
 // Editor de listas M3U: escribir, pegar o editar una lista como texto
 // MultimediaMX — Copyright (C) 2026 Santiago Miguel — GPL-3.0-or-later
-import { S, persist, createPlaylist, findBySrc, go, trackLabel } from '../main.js';
+import { S, persist, createPlaylist, findBySrc, go, trackLabel, expandItems } from '../main.js';
 import { platform, kindOf } from '../core/platform.js';
 import { parseM3U, writeM3U, isUrl } from '../core/m3u.js';
 import { t } from '../i18n/index.js';
@@ -32,6 +32,7 @@ async function toItems(text) {
       group: it.group || null
     });
   }
+  await expandItems(items);
   return { name: parsed.name, items };
 }
 

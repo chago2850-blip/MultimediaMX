@@ -35,6 +35,9 @@ const es = {
   writeM3U: 'Escribir .m3u', writeM3UHint: 'Escribe o edita una lista .m3u con las pistas que ves', editAsM3U: 'Editar como .m3u', deletePlaylist: 'Borrar lista',
   m3uEditorHint: 'Escribe o pega una lista M3U: una ruta de archivo o URL por línea; #EXTINF opcional para el título (#EXTINF:-1,Artista - Título). Puedes guardarla en Listas o exportarla como archivo.',
   playlistName: 'Nombre de la lista', m3uExample: 'Insertar ejemplo', exportFile: 'Exportar archivo .m3u8', saveToPlaylists: 'Guardar en Listas', m3uEmpty: 'La lista no tiene ninguna entrada',
+  loadingRemoteList: 'Descargando lista en línea…', remoteListLoaded: 'Lista en línea cargada: {n} canales', remoteListFailed: 'No se pudo descargar la lista en línea; revisa tu conexión',
+  streamFailed: 'No se pudo abrir la transmisión (el canal puede estar caído o bloqueado en tu región)',
+  liveNoLyrics: 'Transmisión en vivo: busca la letra a mano si suena una canción',
   stream: 'Transmisión', recent: 'Agregados recientemente', sortBy: 'Ordenar', shortcuts: 'Atajos: Espacio reproducir/pausa · ←/→ 5 s · ↑/↓ volumen · N siguiente · P anterior · X detener · L letra · F pantalla completa'
 };
 
@@ -74,6 +77,9 @@ const en = {
   writeM3U: 'Write .m3u', writeM3UHint: 'Write or edit an .m3u playlist with the tracks you see', editAsM3U: 'Edit as .m3u', deletePlaylist: 'Delete playlist',
   m3uEditorHint: 'Type or paste an M3U playlist: one file path or URL per line; optional #EXTINF for the title (#EXTINF:-1,Artist - Title). Save it to Playlists or export it as a file.',
   playlistName: 'Playlist name', m3uExample: 'Insert example', exportFile: 'Export .m3u8 file', saveToPlaylists: 'Save to Playlists', m3uEmpty: 'The playlist has no entries',
+  loadingRemoteList: 'Downloading online playlist…', remoteListLoaded: 'Online playlist loaded: {n} channels', remoteListFailed: 'Could not download the online playlist; check your connection',
+  streamFailed: 'Could not open the stream (the channel may be down or geo-blocked)',
+  liveNoLyrics: 'Live stream: search the lyrics manually if a song is playing',
   stream: 'Stream', recent: 'Recently added', sortBy: 'Sort', shortcuts: 'Shortcuts: Space play/pause · ←/→ 5 s · ↑/↓ volume · N next · P previous · X stop · L lyrics · F full screen'
 };
 

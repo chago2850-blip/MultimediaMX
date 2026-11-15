@@ -9,6 +9,8 @@ import { renderEq } from './eq.js';
 import { openM3UEditor } from './m3ueditor.js';
 
 let vlist = null;
+// logos de canales que no cargan: se quitan (sin código en línea, por la política de seguridad)
+document.addEventListener('error', (e) => { if (e.target?.matches?.('img.logo')) e.target.remove(); }, true);
 let currentRows = [];
 const ROW_H = 54;
 
@@ -259,7 +261,7 @@ function renderPlaylist(v) {
     ${pl.items.length ? `<div class="pl-list">${pl.items.map((it, i) => `
       <div class="pl-row row-static ${it.missing ? 'missing' : ''} ${player.track?.src === it.src ? 'playing' : ''}" data-i="${i}" data-src="${esc(it.src)}" draggable="true">
         <span class="c-n"><span class="num">${i + 1}</span><button class="row-play" data-a="playOne">${icon('play', 16)}</button><span class="eq-anim"><i></i><i></i><i></i></span></span>
-        <span class="c-title"><span class="kind">${it.logo ? `<img class="logo" src="${esc(it.logo)}" alt="" onerror="this.remove()" />` : icon(it.remote ? 'globe' : it.kind === 'video' ? 'video' : 'music', 16)}</span>
+        <span class="c-title"><span class="kind">${it.logo ? `<img class="logo" src="${esc(it.logo)}" alt="" />` : icon(it.remote ? 'globe' : it.kind === 'video' ? 'video' : 'music', 16)}</span>
           <span class="ellip">${esc(it.title || trackLabel(it))}${it.missing ? ` <em>(${t('notFound')})</em>` : ''}</span></span>
         <span class="c-artist ellip">${esc(it.artist || (it.remote ? (it.group || t('stream')) : ''))}</span>
         <span class="c-duration">${it.duration ? fmtTime(it.duration) : it.remote ? '∞' : ''}</span>

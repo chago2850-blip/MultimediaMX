@@ -3,6 +3,7 @@
 import { platform, kindOf } from './platform.js';
 import { isUrl } from './m3u.js';
 import { audio } from './audio.js';
+import { looksLikeHls } from './remote.js';
 
 export class Player extends EventTarget {
   constructor(el) {
@@ -41,6 +42,12 @@ export class Player extends EventTarget {
     m.addEventListener('loadedmetadata', () => {
       if (m !== this.active) return;
       if (!this.tx && Number.isFinite(m.duration)) this.duration = m.duration;
+      if (!this.tx && !Number.isFinite(m.duration)) this.duration = 0; // en vivo
+      // en transmisiones el tipo real (audio o video) se conoce al cargar
+      if (this.track?.remote && !this.tx) {
+        const k = m.videoWidth > 0 ? 'video' : 'audio';
+        if (k !== this.kind) { this.kind = k; this.dispatchEvent(new CustomEvent('loaded', { detail: { track: this.track, probe: null } })); }
+      }
       fire('meta');
     });
     m.addEventListener('durationchange', () => { if (m === this.active && !this.tx && Number.isFinite(m.duration)) { this.duration = m.duration; fire('time'); } });
@@ -156,8 +163,13 @@ export class Player extends EventTarget {
     this.dispatchEvent(new CustomEvent('loaded', { detail: { track, probe } }));
   }
 
+  destroyHls() {
+    if (this.hls) { try { this.hls.destroy(); } catch {} this.hls = null; }
+  }
+
   async attachSource(media, at, play, token) {
     const track = this.track;
+    this.destroyHls();
     if (this.active !== media) { this.active.pause(); this.active.removeAttribute('src'); this.active.load(); }
     this.active = media;
     this.el.classList.toggle('inactive', media !== this.el);
@@ -174,6 +186,28 @@ export class Player extends EventTarget {
     }
     if (token !== this.loadToken) return;
     if (!url) { this.dispatchEvent(new CustomEvent('error', { detail: 'missing' })); return; }
+    const hls = !this.tx && remote && (track.hls || looksLikeHls(track.src));
+    if (hls && !media.canPlayType('application/vnd.apple.mpegurl')) {
+      // HLS (canales de TV/radio en .m3u8) con hls.js cuando el sistema no lo trae
+      const { default: Hls } = await import('hls.js');
+      if (token !== this.loadToken) return;
+      if (Hls.isSupported()) {
+        media.removeAttribute('src');
+        const h = this.hls = new Hls({ enableWorker: true, lowLatencyMode: false, backBufferLength: 30 });
+        h.on(Hls.Events.ERROR, (_e, data) => {
+          if (!data.fatal || this.hls !== h) return;
+          if (data.type === Hls.ErrorTypes.NETWORK_ERROR && !h.retried) { h.retried = true; h.startLoad(); return; }
+          if (data.type === Hls.ErrorTypes.MEDIA_ERROR && !h.recovered) { h.recovered = true; h.recoverMediaError(); return; }
+          this.destroyHls();
+          this.onError();
+        });
+        h.loadSource(url);
+        h.attachMedia(media);
+        media.volume = this.volume; media.muted = this.muted;
+        if (play) h.on(Hls.Events.MANIFEST_PARSED, () => media.play().catch(() => this.dispatchEvent(new Event('state'))));
+        return;
+      }
+    }
     media.src = url;
     media.volume = this.volume;
     media.muted = this.muted;
@@ -196,9 +230,9 @@ export class Player extends EventTarget {
       await this.attachSource(this.el, at, true, this.loadToken);
       return;
     }
-    this.dispatchEvent(new CustomEvent('error', { detail: err?.code === 4 ? 'unsupported' : 'failed' }));
+    this.dispatchEvent(new CustomEvent('error', { detail: this.track?.remote ? 'streamFailed' : err?.code === 4 ? 'unsupported' : 'failed' }));
     // salta a la siguiente después de un momento
-    setTimeout(() => { if (this.active.error && this.hasNext()) this.next(); }, 1800);
+    if (!this.track?.remote) setTimeout(() => { if (this.active.error && this.hasNext()) this.next(); }, 1800);
   }
 
   onEnded() {
@@ -217,14 +251,14 @@ export class Player extends EventTarget {
     if (!this.track) return;
     this.active.pause();
     if (this.tx) await this.attachSource(this.el, 0, false, this.loadToken);
-    else if (this.track.remote) { this.active.removeAttribute('src'); this.active.load(); this.restartRemote = true; }
+    else if (this.track.remote) { this.destroyHls(); this.active.removeAttribute('src'); this.active.load(); this.restartRemote = true; }
     else this.active.currentTime = 0;
     this.dispatchEvent(new Event('time'));
     this.dispatchEvent(new Event('state'));
     this.dispatchEvent(new Event('stopped'));
   }
 
-  stop() { this.active.pause(); this.active.removeAttribute('src'); this.active.load(); this.track = null; this.tx = null; this.dispatchEvent(new CustomEvent('track', { detail: null })); }
+  stop() { this.destroyHls(); this.active.pause(); this.active.removeAttribute('src'); this.active.load(); this.track = null; this.tx = null; this.dispatchEvent(new CustomEvent('track', { detail: null })); }
 
   next() {
     if (this.hasNext()) return this.loadAt(this.pos + 1);

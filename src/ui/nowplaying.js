@@ -61,6 +61,8 @@ export async function onTrackChange(tr) {
   // subtítulos externos
   subs.list = (side.subtitles || []).map((s, i) => ({ id: `ext${i}`, label: s.label, text: s.text }));
   if (subs.list.length) setSubtitle(subs.list[0].id);
+  // los canales de TV y radio en vivo no tienen letra que buscar
+  if (tr.remote && (tr.group || tr.logo || tr.hls || /\.m3u8/i.test(tr.src))) { lyricsState = { status: 'live' }; renderLyricsState(); return; }
   await loadLyrics(tr, token, false);
 }
 
@@ -112,6 +114,7 @@ export function renderLyricsState() {
   if (st.status === 'loading') { el.innerHTML = `<div class="ly-msg"><div class="spinner"></div><p>${t('lyricsSearching')}</p></div>`; return; }
   if (st.status === 'none') { el.innerHTML = `<div class="ly-msg">${icon('lyrics', 30)}<p>${t('lyricsNone')}</p><button class="btn xs" data-a="ly-search">${icon('search', 14)}<span>${t('lyricsSearch')}</span></button></div>`; return; }
   if (st.status === 'offline') { el.innerHTML = `<div class="ly-msg">${icon('globe', 30)}<p>${t('lyricsOffline')}</p><button class="btn xs" data-a="ly-retry">${t('lyricsRetry')}</button></div>`; return; }
+  if (st.status === 'live') { el.innerHTML = `<div class="ly-msg">${icon('globe', 30)}<p>${t('liveNoLyrics')}</p><button class="btn xs" data-a="ly-search">${icon('search', 14)}<span>${t('lyricsSearch')}</span></button></div>`; return; }
   if (st.status === 'disabled') { el.innerHTML = `<div class="ly-msg">${icon('lyrics', 30)}<p>${t('lyricsDisabled')}</p></div>`; return; }
   if (st.status !== 'ok') { el.innerHTML = ''; return; }
   const src = `<div class="ly-src">${t('lyricsSource')}: ${esc({ lrc: '.lrc', tag: 'ID3/Vorbis' }[st.source] || st.source)}</div>`;

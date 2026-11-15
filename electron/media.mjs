@@ -98,7 +98,7 @@ export function transcodeArgs(input, { ss = 0, audioOnly = false, vcopy = false,
   if (audioOnly) {
     args.push('-vn', '-map', `0:a:${audioTrack}?`);
   } else {
-    args.push('-map', '0:v:0', '-map', `0:a:${audioTrack}?`);
+    args.push('-map', '0:v:0?', '-map', `0:a:${audioTrack}?`);
     if (vcopy) args.push('-c:v', 'copy');
     else args.push('-c:v', 'libx264', '-preset', 'veryfast', '-crf', '21', '-pix_fmt', 'yuv420p', '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2');
   }
