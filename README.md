@@ -35,7 +35,8 @@ Los instaladores se generan automáticamente en **[Releases](https://github.com/
 ## Funciones
 
 - **Casi cualquier formato.** En escritorio se reproducen de forma nativa MP3, AAC/M4A, FLAC, OGG/Opus, WAV, MP4, MKV, WebM y MOV; todo lo demás (AVI, WMV, FLV, MPG, VOB, TS, 3GP, RMVB, WMA, APE, AIFF, AC3, DTS, ALAC, WavPack…, o un MKV con audio AC3/DTS) se **convierte al vuelo con FFmpeg**, que viene incluido. Si un archivo «nativo» falla, se reintenta convirtiéndolo automáticamente.
-- **Listas M3U / M3U8.** Importa listas (extendidas o simples, rutas relativas o absolutas, `file://`, URLs de radio e IPTV con `tvg-logo` y `group-title`), crea tus propias listas, reordénalas arrastrando y exporta a `.m3u8`.
+- **Listas M3U / M3U8.** Importa listas (extendidas o simples, rutas relativas o absolutas, `file://`, URLs de radio e IPTV con `tvg-logo` y `group-title`), crea tus propias listas, reordénalas arrastrando, bórralas con un clic y exporta a `.m3u8`.
+- **Escribir listas .m3u** desde la Biblioteca: un editor de texto que se rellena con las pistas que estás viendo (respeta la búsqueda y los filtros), donde puedes escribir o pegar rutas y URLs, y guardar en Listas o exportar el archivo. Cualquier lista se puede «Editar como .m3u».
 - **Ecualizador de 10 bandas** (31 Hz – 16 kHz, ±12 dB) con curva de respuesta, 14 preajustes (Rock, Pop, Jazz, Clásica, Electrónica, Latina, Cine…), preajustes propios, preamplificador, balance y limitador contra saturación.
 - **Letras en línea** cuando hay conexión: LRCLIB (letras sincronizadas línea por línea) y lyrics.ovh como respaldo. También lee letras incrustadas en las etiquetas y archivos `.lrc` junto a la canción. Funciona con canciones **y videos** (deduce artista y título del nombre del archivo, p. ej. `Artista - Canción (Video Oficial).mp4`). Toca una línea para saltar a ese momento; puedes corregir la búsqueda a mano.
 - **Tres interfaces intercambiables** (Ajustes → Interfaz, o el botón de paleta):
@@ -51,6 +52,7 @@ Los instaladores se generan automáticamente en **[Releases](https://github.com/
 | Tecla | Acción |
 |---|---|
 | Espacio | Reproducir / pausa |
+| X | Detener (regresa al inicio) |
 | ← / → (Shift: 30 s) | Retroceder / avanzar 5 s |
 | ↑ / ↓ | Volumen |
 | N / P | Siguiente / anterior |

@@ -30,6 +30,8 @@ export function toast(msg, ms = 2600) {
   toastTimer = setTimeout(() => el.classList.remove('show'), ms);
 }
 
+export function openModal(html, onMount) { return modal(html, onMount); }
+
 function modal(html, onMount) {
   return new Promise((resolve) => {
     const root = $('#modal');
@@ -88,7 +90,7 @@ export function contextMenu(x, y, items) {
   const el = document.createElement('div');
   el.className = 'ctx-menu';
   el.innerHTML = items.map((it, i) => it === '-' ? '<hr/>' : `<button data-i="${i}" class="${it.danger ? 'danger' : ''}">${it.icon ? icon(it.icon, 16) : '<span class="ic-space"></span>'}<span>${esc(it.label)}</span>${it.checked ? icon('check', 14, 'tick') : ''}</button>`).join('');
-  document.body.appendChild(el);
+  ($('#app') || document.body).appendChild(el);
   const r = el.getBoundingClientRect();
   el.style.left = `${Math.min(x, innerWidth - r.width - 8)}px`;
   el.style.top = `${Math.min(y, innerHeight - r.height - 8)}px`;

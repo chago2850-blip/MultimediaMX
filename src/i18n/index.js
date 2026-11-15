@@ -7,7 +7,7 @@ const es = {
   emptyLibrary: 'Tu biblioteca está vacía', emptyLibraryHint: 'Agrega archivos o carpetas, o arrástralos a esta ventana. También puedes importar listas .m3u.',
   emptyQueue: 'La cola está vacía', emptyPlaylists: 'Aún no tienes listas', emptyPlaylistsHint: 'Crea una lista nueva o importa un archivo .m3u / .m3u8.',
   emptyPlaylist: 'Esta lista está vacía', emptyPlaylistHint: 'Agrega canciones desde la biblioteca con el botón ＋ de cada fila.',
-  play: 'Reproducir', pause: 'Pausa', next: 'Siguiente', prev: 'Anterior', shuffle: 'Aleatorio', repeat: 'Repetir', repeatOne: 'Repetir una', mute: 'Silencio',
+  play: 'Reproducir', pause: 'Pausa', stop: 'Detener', next: 'Siguiente', prev: 'Anterior', shuffle: 'Aleatorio', repeat: 'Repetir', repeatOne: 'Repetir una', mute: 'Silencio',
   playAll: 'Reproducir todo', shuffleAll: 'Aleatorio', addToQueue: 'Agregar a la cola', playNext: 'Reproducir después', addToPlaylist: 'Agregar a lista',
   remove: 'Quitar', removeFromLibrary: 'Quitar de la biblioteca', reveal: 'Mostrar en carpeta', rename: 'Renombrar', delete: 'Eliminar', export: 'Exportar .m3u8', clear: 'Vaciar',
   tracks: 'pistas', track: 'pista', items: 'elementos', unknownArtist: 'Artista desconocido', unknownAlbum: 'Álbum desconocido',
@@ -32,7 +32,10 @@ const es = {
   added: 'Agregado', addedN: '{n} elementos agregados', saved: 'Guardado en', imported: 'Lista importada', playlistCreated: 'Lista creada', deleted: 'Eliminado',
   confirmDelete: '¿Eliminar la lista «{name}»?', newPlaylistName: 'Nombre de la nueva lista', notFound: 'no encontrado', loadingMeta: 'Leyendo etiquetas…',
   dropHere: 'Suelta aquí para agregar', permissionDenied: 'Se necesita permiso para leer música y videos', cancel: 'Cancelar', ok: 'Aceptar', save: 'Guardar',
-  stream: 'Transmisión', recent: 'Agregados recientemente', sortBy: 'Ordenar', shortcuts: 'Atajos: Espacio reproducir/pausa · ←/→ 5 s · ↑/↓ volumen · N siguiente · P anterior · L letra · F pantalla completa'
+  writeM3U: 'Escribir .m3u', writeM3UHint: 'Escribe o edita una lista .m3u con las pistas que ves', editAsM3U: 'Editar como .m3u', deletePlaylist: 'Borrar lista',
+  m3uEditorHint: 'Escribe o pega una lista M3U: una ruta de archivo o URL por línea; #EXTINF opcional para el título (#EXTINF:-1,Artista - Título). Puedes guardarla en Listas o exportarla como archivo.',
+  playlistName: 'Nombre de la lista', m3uExample: 'Insertar ejemplo', exportFile: 'Exportar archivo .m3u8', saveToPlaylists: 'Guardar en Listas', m3uEmpty: 'La lista no tiene ninguna entrada',
+  stream: 'Transmisión', recent: 'Agregados recientemente', sortBy: 'Ordenar', shortcuts: 'Atajos: Espacio reproducir/pausa · ←/→ 5 s · ↑/↓ volumen · N siguiente · P anterior · X detener · L letra · F pantalla completa'
 };
 
 const en = {
@@ -43,7 +46,7 @@ const en = {
   emptyLibrary: 'Your library is empty', emptyLibraryHint: 'Add files or folders, or drag them onto this window. You can also import .m3u playlists.',
   emptyQueue: 'The queue is empty', emptyPlaylists: 'No playlists yet', emptyPlaylistsHint: 'Create a new playlist or import an .m3u / .m3u8 file.',
   emptyPlaylist: 'This playlist is empty', emptyPlaylistHint: 'Add songs from the library with the ＋ button on each row.',
-  play: 'Play', pause: 'Pause', next: 'Next', prev: 'Previous', shuffle: 'Shuffle', repeat: 'Repeat', repeatOne: 'Repeat one', mute: 'Mute',
+  play: 'Play', pause: 'Pause', stop: 'Stop', next: 'Next', prev: 'Previous', shuffle: 'Shuffle', repeat: 'Repeat', repeatOne: 'Repeat one', mute: 'Mute',
   playAll: 'Play all', shuffleAll: 'Shuffle', addToQueue: 'Add to queue', playNext: 'Play next', addToPlaylist: 'Add to playlist',
   remove: 'Remove', removeFromLibrary: 'Remove from library', reveal: 'Show in folder', rename: 'Rename', delete: 'Delete', export: 'Export .m3u8', clear: 'Clear',
   tracks: 'tracks', track: 'track', items: 'items', unknownArtist: 'Unknown artist', unknownAlbum: 'Unknown album',
@@ -68,7 +71,10 @@ const en = {
   added: 'Added', addedN: '{n} items added', saved: 'Saved to', imported: 'Playlist imported', playlistCreated: 'Playlist created', deleted: 'Deleted',
   confirmDelete: 'Delete playlist “{name}”?', newPlaylistName: 'New playlist name', notFound: 'not found', loadingMeta: 'Reading tags…',
   dropHere: 'Drop here to add', permissionDenied: 'Permission is needed to read music and videos', cancel: 'Cancel', ok: 'OK', save: 'Save',
-  stream: 'Stream', recent: 'Recently added', sortBy: 'Sort', shortcuts: 'Shortcuts: Space play/pause · ←/→ 5 s · ↑/↓ volume · N next · P previous · L lyrics · F full screen'
+  writeM3U: 'Write .m3u', writeM3UHint: 'Write or edit an .m3u playlist with the tracks you see', editAsM3U: 'Edit as .m3u', deletePlaylist: 'Delete playlist',
+  m3uEditorHint: 'Type or paste an M3U playlist: one file path or URL per line; optional #EXTINF for the title (#EXTINF:-1,Artist - Title). Save it to Playlists or export it as a file.',
+  playlistName: 'Playlist name', m3uExample: 'Insert example', exportFile: 'Export .m3u8 file', saveToPlaylists: 'Save to Playlists', m3uEmpty: 'The playlist has no entries',
+  stream: 'Stream', recent: 'Recently added', sortBy: 'Sort', shortcuts: 'Shortcuts: Space play/pause · ←/→ 5 s · ↑/↓ volume · N next · P previous · X stop · L lyrics · F full screen'
 };
 
 const dicts = { es, en };

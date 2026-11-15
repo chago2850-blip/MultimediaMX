@@ -1,6 +1,7 @@
 // Iconos propios (24×24, trazo) — MultimediaMX — GPL-3.0-or-later
 const P = {
   play: '<path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.4-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z" fill="currentColor" stroke="none"/>',
+  stop: '<rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" stroke="none"/>',
   pause: '<rect x="6.5" y="5" width="4" height="14" rx="1.2" fill="currentColor" stroke="none"/><rect x="13.5" y="5" width="4" height="14" rx="1.2" fill="currentColor" stroke="none"/>',
   next: '<path d="M5 6.2v11.6a.8.8 0 0 0 1.2.7l8.7-5.8a.8.8 0 0 0 0-1.4L6.2 5.5A.8.8 0 0 0 5 6.2Z" fill="currentColor" stroke="none"/><rect x="16.5" y="5" width="2.6" height="14" rx="1.1" fill="currentColor" stroke="none"/>',
   prev: '<path d="M19 6.2v11.6a.8.8 0 0 1-1.2.7l-8.7-5.8a.8.8 0 0 1 0-1.4l8.7-5.8a.8.8 0 0 1 1.2.7Z" fill="currentColor" stroke="none"/><rect x="4.9" y="5" width="2.6" height="14" rx="1.1" fill="currentColor" stroke="none"/>',

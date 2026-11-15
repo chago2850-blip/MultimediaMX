@@ -1,7 +1,7 @@
 {
   "name": "multimediamx",
   "productName": "MultimediaMX",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Reproductor multimedia libre y elegante: audio, video, listas M3U, ecualizador de 10 bandas y letras sincronizadas.",
   "author": {
     "name": "Santiago Miguel",

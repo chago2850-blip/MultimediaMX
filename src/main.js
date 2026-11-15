@@ -282,6 +282,7 @@ export function renderBar() {
   const rep = S.settings.repeat;
   $('#barControls').innerHTML = `
     <button class="icon-btn sm ${S.settings.shuffle ? 'on' : ''}" data-a="shuffle" title="${t('shuffle')}">${icon('shuffle', 18)}</button>
+    <button class="icon-btn sm" data-a="stop" title="${t('stop')}" ${player.track ? '' : 'disabled'}>${icon('stop', 18)}</button>
     <button class="icon-btn" data-a="prev" title="${t('prev')}">${icon('prev', 22)}</button>
     <button class="play-btn" data-a="toggle" title="${playing ? t('pause') : t('play')}">${icon(playing ? 'pause' : 'play', 26)}</button>
     <button class="icon-btn" data-a="next" title="${t('next')}">${icon('next', 22)}</button>
@@ -371,6 +372,7 @@ export function paintTime(forced) {
 // ------------------------------------------------------------------ acciones de botones
 const ACTIONS = {
   toggle: () => player.toggle(),
+  stop: () => player.halt(),
   prev: () => player.prev(),
   next: () => player.next(),
   shuffle: () => { S.settings.shuffle = !S.settings.shuffle; player.setShuffle(S.settings.shuffle); persist('settings'); renderBar(); },
@@ -449,6 +451,7 @@ function initKeys() {
     else if (k === 'n') player.next();
     else if (k === 'p') player.prev();
     else if (k === 'm') ACTIONS.mute();
+    else if (k === 'x') player.halt();
     else if (k === 'l') ACTIONS.lyrics();
     else if (k === 's') ACTIONS.shuffle();
     else if (k === 'r') ACTIONS.repeat();
@@ -522,6 +525,7 @@ function initMediaSession() {
   const set = (a, fn) => { try { ms.setActionHandler(a, fn); } catch {} };
   set('play', () => player.play());
   set('pause', () => player.pause());
+  set('stop', () => player.halt());
   set('previoustrack', () => player.prev());
   set('nexttrack', () => player.next());
   set('seekto', (d) => player.seek(d.seekTime));

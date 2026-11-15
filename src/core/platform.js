@@ -214,7 +214,7 @@ function web(cap) {
     async httpGet(url) {
       try {
         if (native) {
-          const r = await CapacitorHttp.get({ url, headers: { 'User-Agent': 'MultimediaMX/1.0 (https://github.com/chago2850-blip/MultimediaMX)' }, responseType: 'text' });
+          const r = await CapacitorHttp.get({ url, headers: { 'User-Agent': `MultimediaMX/${__APP_VERSION__} (https://github.com/chago2850-blip/MultimediaMX)` }, responseType: 'text' });
           return { ok: r.status >= 200 && r.status < 300, status: r.status, text: typeof r.data === 'string' ? r.data : JSON.stringify(r.data) };
         }
         const r = await fetch(url);
@@ -227,7 +227,7 @@ function web(cap) {
     adoptFiles: (files) => fromFiles(files),
     async takePending() { return []; },
     onOpenFiles() {},
-    async info() { return { version: '1.0.0', platform: native ? 'android' : 'web' }; },
+    async info() { return { version: __APP_VERSION__, platform: native ? 'android' : 'web' }; },
     async setFullscreen(v) {
       try { if (v) await document.documentElement.requestFullscreen(); else if (document.fullscreenElement) await document.exitFullscreen(); } catch {}
     },

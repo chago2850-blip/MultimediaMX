@@ -392,9 +392,23 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px;
 #app.video-fs #bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 95; background: linear-gradient(transparent, rgba(0,0,0,.85)) !important; border: 0 !important; color: #fff; opacity: 0; transition: opacity .3s; --muted: rgba(255,255,255,.7); }
 #app.video-fs #bar:hover { opacity: 1; }
 #app.mini { grid-template-columns: 1fr !important; grid-template-rows: 1fr !important; grid-template-areas: "bar" !important; }
-#app.mini > :not(#bar) { display: none !important; }
+#app.mini > :not(#bar):not(#modal):not(#toast):not(.ctx-menu) { display: none !important; }
 #app.mini #bar { height: 100vh; grid-template-columns: 1fr; grid-template-rows: auto auto; gap: 8px; padding: 12px 14px; align-content: center; -webkit-app-region: drag; }
 #app.mini #bar button, #app.mini #bar input, #app.mini .seek { -webkit-app-region: no-drag; }
 #app.mini .bar-right > :not([data-a=mini]) { display: none; }
 #app.mini .bar-right { position: absolute; top: 8px; right: 8px; }
 #app.mini .bar-cover { width: 44px; height: 44px; }
+
+/* ------------------------------------------------------------ v1.1: borrar listas, editor M3U, detener */
+.pl-del { position: absolute; top: 10px; right: 10px; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: rgba(0,0,0,.5); color: #fff; opacity: 0; transform: scale(.9); transition: .2s var(--ease); backdrop-filter: blur(6px); }
+.pl-card:hover .pl-del { opacity: 1; transform: none; }
+.pl-del:hover { background: #e5484d; }
+@media (pointer: coarse) { .pl-del, .pl-play { opacity: 1 !important; transform: none !important; } }
+.danger-btn:hover { color: #ff6b7d; border-color: rgba(255,107,125,.5); background: rgba(229,72,77,.1); }
+.icon-btn:disabled { opacity: .35; pointer-events: none; }
+.modal-card.wide { width: min(760px, 100%); }
+.m3u-editor h3 { display: flex; align-items: center; gap: 10px; }
+.m3u-editor .sub { margin: -6px 0 6px; line-height: 1.5; }
+.m3u-text { height: min(46vh, 380px); padding: 12px; resize: vertical; font-family: var(--mono); font-size: 12.5px; line-height: 1.55; white-space: pre; overflow: auto; user-select: text; tab-size: 2; }
+.m3u-status { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; color: var(--muted); font-size: 12px; }
+@media (max-width: 760px) { .modal-card .modal-actions { flex-wrap: wrap; } .modal-card .modal-actions .btn { flex: 1; justify-content: center; } }

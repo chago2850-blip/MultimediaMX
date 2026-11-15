@@ -6,6 +6,7 @@ import { t, setLang } from '../i18n/index.js';
 import { icon } from './icons.js';
 import { $, $$, esc, fmtTime, fmtTotal, toast, promptText, confirmBox, contextMenu, VirtualList } from './dom.js';
 import { renderEq } from './eq.js';
+import { openM3UEditor } from './m3ueditor.js';
 
 let vlist = null;
 let currentRows = [];
@@ -63,6 +64,7 @@ function renderLibrary(v) {
         ${platform.canScanFolders ? `<button class="btn ghost" data-a="folder">${icon('folder', 16)}<span>${t('addFolder')}</span></button>` : ''}
         ${platform.canScanDevice ? `<button class="btn ghost" data-a="device">${icon('phone', 16)}<span>${t('scanDevice')}</span></button>` : ''}
         <button class="btn ghost" data-a="m3u">${icon('import', 16)}<span>${t('importM3U')}</span></button>
+        <button class="btn ghost" data-a="write" title="${t('writeM3UHint')}">${icon('edit', 16)}<span>${t('writeM3U')}</span></button>
       </div>
     </div>
     <div class="table-head">
@@ -83,6 +85,7 @@ function renderLibrary(v) {
     if (a === 'folder') pickFolder();
     if (a === 'device') scanDevice();
     if (a === 'm3u') importPlaylists();
+    if (a === 'write') openM3UEditor({ name: S.query ? S.query : '', tracks: currentRows });
   };
   v.querySelector('.table-head').onclick = (e) => {
     const k = e.target.closest('[data-sort]')?.dataset.sort;
@@ -130,9 +133,10 @@ function fillLibrary() {
            <div class="empty-actions"><button class="btn primary" data-a="files">${icon('file', 16)}<span>${t('addFiles')}</span></button>
            ${platform.canScanFolders ? `<button class="btn" data-a="folder">${icon('folder', 16)}<span>${t('addFolder')}</span></button>` : ''}
            ${platform.canScanDevice ? `<button class="btn" data-a="device">${icon('phone', 16)}<span>${t('scanDevice')}</span></button>` : ''}
-           <button class="btn ghost" data-a="m3u">${icon('import', 16)}<span>${t('importM3U')}</span></button></div>
+           <button class="btn ghost" data-a="m3u">${icon('import', 16)}<span>${t('importM3U')}</span></button>
+           <button class="btn ghost" data-a="write">${icon('edit', 16)}<span>${t('writeM3U')}</span></button></div>
            <p class="hint">${t('shortcuts')}</p>`;
-      empty.onclick = (e) => { const a = e.target.closest('[data-a]')?.dataset.a; if (a === 'files') pickFiles(); if (a === 'folder') pickFolder(); if (a === 'device') scanDevice(); if (a === 'm3u') importPlaylists(); };
+      empty.onclick = (e) => { const a = e.target.closest('[data-a]')?.dataset.a; if (a === 'files') pickFiles(); if (a === 'folder') pickFolder(); if (a === 'device') scanDevice(); if (a === 'm3u') importPlaylists(); if (a === 'write') openM3UEditor(); };
     }
   }
 }
@@ -188,13 +192,15 @@ function renderPlaylists(v) {
       <div class="head-actions">
         <button class="btn primary" data-a="new">${icon('plus', 16)}<span>${t('newPlaylist')}</span></button>
         <button class="btn" data-a="m3u">${icon('import', 16)}<span>${t('importM3U')}</span></button>
+        <button class="btn ghost" data-a="write">${icon('edit', 16)}<span>${t('writeM3U')}</span></button>
       </div>
     </div>
     ${S.playlists.length ? `<div class="pl-grid">${S.playlists.map((pl) => {
       const dur = pl.items.reduce((a, x) => a + (x.duration || 0), 0);
       const hue = [...pl.name].reduce((a, c) => a + c.charCodeAt(0), 0) % 360;
       return `<div class="pl-card" data-id="${pl.id}" style="--h:${hue}">
-        <div class="pl-art"><div class="pl-mosaic" data-id="${pl.id}"></div>${icon('list', 34)}<button class="pl-play" data-a="play" title="${t('play')}">${icon('play', 22)}</button></div>
+        <div class="pl-art"><div class="pl-mosaic" data-id="${pl.id}"></div>${icon('list', 34)}<button class="pl-play" data-a="play" title="${t('play')}">${icon('play', 22)}</button>
+          <button class="pl-del" data-a="del" title="${t('deletePlaylist')}">${icon('trash', 17)}</button></div>
         <div class="pl-name ellip">${esc(pl.name)}</div>
         <div class="pl-meta">${pl.items.length} ${pl.items.length === 1 ? t('track') : t('tracks')}${dur ? ' · ' + fmtTotal(dur) : ''}</div>
       </div>`;
@@ -207,7 +213,16 @@ function renderPlaylists(v) {
       const name = await promptText(t('newPlaylistName'), '', t('newPlaylist'));
       if (name) { const pl = createPlaylist(name); go('playlist', pl.id); }
     } else if (a === 'm3u') importPlaylists();
-    else if (card && a === 'play') { const pl = S.playlists.find((p) => p.id === card.dataset.id); if (pl?.items.length) playList(pl.items, 0); }
+    else if (a === 'write') openM3UEditor();
+    else if (card && a === 'del') {
+      const pl = S.playlists.find((p) => p.id === card.dataset.id);
+      if (pl && await confirmBox(t('confirmDelete', { name: pl.name }))) {
+        S.playlists = S.playlists.filter((p) => p !== pl);
+        persist('playlists');
+        toast(`${t('deleted')}: ${pl.name}`);
+        renderPlaylists(v);
+      }
+    } else if (card && a === 'play') { const pl = S.playlists.find((p) => p.id === card.dataset.id); if (pl?.items.length) playList(pl.items, 0); }
     else if (card) go('playlist', card.dataset.id);
   };
   // mosaico de portadas
@@ -236,8 +251,9 @@ function renderPlaylist(v) {
         <button class="btn primary" data-a="play" ${pl.items.length ? '' : 'disabled'}>${icon('play', 16)}<span>${t('play')}</span></button>
         <button class="btn" data-a="shuffle" ${pl.items.length ? '' : 'disabled'}>${icon('shuffle', 16)}<span>${t('shuffleAll')}</span></button>
         <button class="btn ghost" data-a="export">${icon('save', 16)}<span>${t('export')}</span></button>
+        <button class="btn ghost" data-a="editM3U">${icon('edit', 16)}<span>${t('editAsM3U')}</span></button>
         <button class="icon-btn" data-a="rename" title="${t('rename')}">${icon('edit', 18)}</button>
-        <button class="icon-btn danger" data-a="delete" title="${t('delete')}">${icon('trash', 18)}</button>
+        <button class="btn ghost danger-btn" data-a="delete">${icon('trash', 16)}<span>${t('deletePlaylist')}</span></button>
       </div>
     </div>
     ${pl.items.length ? `<div class="pl-list">${pl.items.map((it, i) => `
@@ -258,6 +274,7 @@ function renderPlaylist(v) {
     else if (a === 'play') playList(pl.items, 0, { shuffle: false });
     else if (a === 'shuffle') playList(pl.items, 0, { shuffle: true });
     else if (a === 'export') exportPlaylist(pl);
+    else if (a === 'editM3U') { if (await openM3UEditor({ playlist: pl })) renderPlaylist(v); }
     else if (a === 'rename') {
       const name = await promptText(t('rename'), pl.name);
       if (name) { pl.name = name; persist('playlists'); renderPlaylist(v); }

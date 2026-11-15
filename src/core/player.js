@@ -132,6 +132,7 @@ export class Player extends EventTarget {
     this.duration = track.duration || 0;
     this.kind = track.kind || kindOf(track.src) || 'audio';
     this.fellBack = false;
+    this.restartRemote = false;
     this.dispatchEvent(new CustomEvent('track', { detail: track }));
     this.dispatchEvent(new CustomEvent('buffering', { detail: true }));
 
@@ -208,9 +209,21 @@ export class Player extends EventTarget {
   }
 
   hasNext() { return this.pos < this.order.length - 1; }
-  play() { audio.resume(); if (!this.track && this.order.length) return this.loadAt(Math.max(0, this.pos)); return this.active.play().catch(() => {}); }
+  play() { audio.resume(); if (!this.track && this.order.length) return this.loadAt(Math.max(0, this.pos)); if (this.restartRemote) { this.restartRemote = false; return this.loadAt(this.pos, { play: true }); } return this.active.play().catch(() => {}); }
   pause() { this.active.pause(); }
   toggle() { return this.paused ? this.play() : this.pause(); }
+  /** Detener: pausa y regresa al inicio sin perder la pista ni la cola. */
+  async halt() {
+    if (!this.track) return;
+    this.active.pause();
+    if (this.tx) await this.attachSource(this.el, 0, false, this.loadToken);
+    else if (this.track.remote) { this.active.removeAttribute('src'); this.active.load(); this.restartRemote = true; }
+    else this.active.currentTime = 0;
+    this.dispatchEvent(new Event('time'));
+    this.dispatchEvent(new Event('state'));
+    this.dispatchEvent(new Event('stopped'));
+  }
+
   stop() { this.active.pause(); this.active.removeAttribute('src'); this.active.load(); this.track = null; this.tx = null; this.dispatchEvent(new CustomEvent('track', { detail: null })); }
 
   next() {
