@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld('mmx', {
   sidecars: call('sidecars'),
   extractSubtitle: call('extract-subtitle'),
   httpGet: call('http-get'),
+  httpPeek: call('http-peek'),
   exists: call('exists'),
   reveal: call('reveal'),
   openExternal: call('open-external'),

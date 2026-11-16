@@ -37,6 +37,9 @@ const es = {
   playlistName: 'Nombre de la lista', m3uExample: 'Insertar ejemplo', exportFile: 'Exportar archivo .m3u8', saveToPlaylists: 'Guardar en Listas', m3uEmpty: 'La lista no tiene ninguna entrada',
   loadingRemoteList: 'Descargando lista en línea…', remoteListLoaded: 'Lista en línea cargada: {n} canales', remoteListFailed: 'No se pudo descargar la lista en línea; revisa tu conexión',
   streamFailed: 'No se pudo abrir la transmisión (el canal puede estar caído o bloqueado en tu región)',
+  tvMode: 'Modo TV (control remoto)', tvModeHint: 'Navega con las flechas del control, OK para elegir y Atrás para regresar. «Automático» lo activa en Android TV / Google TV.', tvAuto: 'Automático', tvOn: 'Activado', tvOff: 'Desactivado', backAgainToExit: 'Presiona Atrás otra vez para salir',
+  ready: 'Listo', openUrl: 'Abrir URL', openUrlTitle: 'Abrir lista o transmisión desde una URL', openUrlHint: 'Pega la dirección de una lista .m3u (también enlaces cortos como bit.ly) o de un canal o radio.',
+  filterList: 'Filtrar canales…', allGroups: 'Todos los grupos', shown: 'mostrando',
   liveNoLyrics: 'Transmisión en vivo: busca la letra a mano si suena una canción',
   stream: 'Transmisión', recent: 'Agregados recientemente', sortBy: 'Ordenar', shortcuts: 'Atajos: Espacio reproducir/pausa · ←/→ 5 s · ↑/↓ volumen · N siguiente · P anterior · X detener · L letra · F pantalla completa'
 };
@@ -79,6 +82,9 @@ const en = {
   playlistName: 'Playlist name', m3uExample: 'Insert example', exportFile: 'Export .m3u8 file', saveToPlaylists: 'Save to Playlists', m3uEmpty: 'The playlist has no entries',
   loadingRemoteList: 'Downloading online playlist…', remoteListLoaded: 'Online playlist loaded: {n} channels', remoteListFailed: 'Could not download the online playlist; check your connection',
   streamFailed: 'Could not open the stream (the channel may be down or geo-blocked)',
+  tvMode: 'TV mode (remote control)', tvModeHint: 'Navigate with the remote arrows, OK to select and Back to return. “Automatic” turns it on in Android TV / Google TV.', tvAuto: 'Automatic', tvOn: 'On', tvOff: 'Off', backAgainToExit: 'Press Back again to exit',
+  ready: 'Ready', openUrl: 'Open URL', openUrlTitle: 'Open a playlist or stream from a URL', openUrlHint: 'Paste the address of an .m3u playlist (short links like bit.ly work too) or of a channel or radio.',
+  filterList: 'Filter channels…', allGroups: 'All groups', shown: 'showing',
   liveNoLyrics: 'Live stream: search the lyrics manually if a song is playing',
   stream: 'Stream', recent: 'Recently added', sortBy: 'Sort', shortcuts: 'Shortcuts: Space play/pause · ←/→ 5 s · ↑/↓ volume · N next · P previous · X stop · L lyrics · F full screen'
 };

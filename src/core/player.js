@@ -3,7 +3,7 @@
 import { platform, kindOf } from './platform.js';
 import { isUrl } from './m3u.js';
 import { audio } from './audio.js';
-import { looksLikeHls } from './remote.js';
+import { remoteSteps } from './remote.js';
 
 export class Player extends EventTarget {
   constructor(el) {
@@ -52,7 +52,7 @@ export class Player extends EventTarget {
     });
     m.addEventListener('durationchange', () => { if (m === this.active && !this.tx && Number.isFinite(m.duration)) { this.duration = m.duration; fire('time'); } });
     m.addEventListener('ended', () => { if (m === this.active) this.onEnded(); });
-    m.addEventListener('error', () => { if (m === this.active && m.getAttribute('src')) this.onError(); });
+    m.addEventListener('error', () => { if (m === this.active && m.getAttribute('src') && !this.hls && !this.ts) this.onError(); });
   }
 
   get currentTime() { return this.offset + (this.active.currentTime || 0); }
@@ -128,8 +128,9 @@ export class Player extends EventTarget {
 
   playQueueIndex(qi) { const op = this.order.indexOf(qi); if (op >= 0) return this.loadAt(op, { play: true }); }
 
-  async loadAt(op, { play = true, at = 0 } = {}) {
+  async loadAt(op, { play = true, at = 0, keepRetries = false } = {}) {
     if (op < 0 || op >= this.order.length) return;
+    if (!keepRetries) this.liveRetries = 0;
     this.pos = op;
     const track = this.queue[this.order[op]];
     const token = ++this.loadToken;
@@ -157,26 +158,39 @@ export class Player extends EventTarget {
     const decision = probe?.decision || { mode: 'native', audioOnly: this.kind !== 'video' };
     if (decision.mode === 'transcode') this.tx = { ...decision, audioTrack: 0 };
 
-    // Android/navegador: las transmisiones remotas sin CORS se reproducen sin pasar por el ecualizador
-    const useDirect = remote && !platform.canTranscode;
-    await this.attachSource(useDirect ? this.direct : this.el, at, play, token);
+    if (remote) {
+      this.remoteSteps = remoteSteps(track);
+      this.remoteStep = 0;
+      await this.attachRemote(play, token);
+    } else {
+      await this.attachSource(this.el, at, play, token);
+    }
     this.dispatchEvent(new CustomEvent('loaded', { detail: { track, probe } }));
   }
 
-  destroyHls() {
+  destroyEngines() {
     if (this.hls) { try { this.hls.destroy(); } catch {} this.hls = null; }
+    if (this.ts) { try { this.ts.pause(); this.ts.unload(); this.ts.detachMediaElement(); this.ts.destroy(); } catch {} this.ts = null; }
   }
+  destroyHls() { this.destroyEngines(); }
 
-  async attachSource(media, at, play, token) {
-    const track = this.track;
-    this.destroyHls();
+  /** Cambia el elemento activo (el conectado al ecualizador o el directo). */
+  useMedia(media) {
+    this.destroyEngines();
     if (this.active !== media) { this.active.pause(); this.active.removeAttribute('src'); this.active.load(); }
     this.active = media;
     this.el.classList.toggle('inactive', media !== this.el);
     this.direct.classList.toggle('inactive', media !== this.direct);
     if (media === this.el) audio.attach(this.el);
-    const remote = isUrl(track.src);
-    media.crossOrigin = remote && media === this.direct ? null : 'anonymous';
+    media.volume = this.volume;
+    media.muted = this.muted;
+    media.playbackRate = this.speed;
+  }
+
+  async attachSource(media, at, play, token) {
+    const track = this.track;
+    this.useMedia(media);
+    media.crossOrigin = 'anonymous';
     let url;
     if (this.tx) {
       this.offset = at;
@@ -186,31 +200,7 @@ export class Player extends EventTarget {
     }
     if (token !== this.loadToken) return;
     if (!url) { this.dispatchEvent(new CustomEvent('error', { detail: 'missing' })); return; }
-    const hls = !this.tx && remote && (track.hls || looksLikeHls(track.src));
-    if (hls && !media.canPlayType('application/vnd.apple.mpegurl')) {
-      // HLS (canales de TV/radio en .m3u8) con hls.js cuando el sistema no lo trae
-      const { default: Hls } = await import('hls.js');
-      if (token !== this.loadToken) return;
-      if (Hls.isSupported()) {
-        media.removeAttribute('src');
-        const h = this.hls = new Hls({ enableWorker: true, lowLatencyMode: false, backBufferLength: 30 });
-        h.on(Hls.Events.ERROR, (_e, data) => {
-          if (!data.fatal || this.hls !== h) return;
-          if (data.type === Hls.ErrorTypes.NETWORK_ERROR && !h.retried) { h.retried = true; h.startLoad(); return; }
-          if (data.type === Hls.ErrorTypes.MEDIA_ERROR && !h.recovered) { h.recovered = true; h.recoverMediaError(); return; }
-          this.destroyHls();
-          this.onError();
-        });
-        h.loadSource(url);
-        h.attachMedia(media);
-        media.volume = this.volume; media.muted = this.muted;
-        if (play) h.on(Hls.Events.MANIFEST_PARSED, () => media.play().catch(() => this.dispatchEvent(new Event('state'))));
-        return;
-      }
-    }
     media.src = url;
-    media.volume = this.volume;
-    media.muted = this.muted;
     media.playbackRate = this.speed;
     media.preservesPitch = true;
     if (!this.tx && at > 0) {
@@ -220,22 +210,100 @@ export class Player extends EventTarget {
     if (play) media.play().catch((e) => { if (e?.name === 'NotAllowedError') this.dispatchEvent(new Event('state')); });
   }
 
-  async onError() {
-    const err = this.active.error;
-    // Si falla lo nativo en escritorio, se reintenta convirtiendo con FFmpeg
-    if (platform.canTranscode && !this.tx && !this.fellBack && this.track) {
-      this.fellBack = true;
-      this.tx = { mode: 'transcode', audioOnly: this.kind !== 'video', vcopy: false, acopy: false, audioTrack: 0 };
-      const at = this.active.currentTime || 0;
-      await this.attachSource(this.el, at, true, this.loadToken);
+  /**
+   * Transmisiones en línea: se prueban en orden reproductor nativo, HLS (hls.js) y MPEG-TS (mpegts.js).
+   * En Android pasan por el servidor local (sin problemas de CORS y con ecualizador).
+   */
+  async attachRemote(play, token) {
+    const track = this.track;
+    const step = this.remoteSteps[this.remoteStep];
+    const proxied = platform.proxyUrl ? await platform.proxyUrl(track.src) : null;
+    if (token !== this.loadToken) return;
+    const url = proxied || track.src;
+    const viaEq = !!proxied || platform.canTranscode;
+    const fail = () => { if (token === this.loadToken) this.onError(); };
+
+    if (step === 'native') {
+      const media = viaEq ? this.el : this.direct;
+      this.useMedia(media);
+      media.crossOrigin = viaEq ? 'anonymous' : null;
+      media.src = url;
+      if (play) media.play().catch((e) => { if (e?.name === 'NotAllowedError') this.dispatchEvent(new Event('state')); });
       return;
     }
-    this.dispatchEvent(new CustomEvent('error', { detail: this.track?.remote ? 'streamFailed' : err?.code === 4 ? 'unsupported' : 'failed' }));
+    this.useMedia(this.el);
+    this.el.crossOrigin = 'anonymous';
+    this.el.removeAttribute('src');
+    if (step === 'hls') {
+      const { default: Hls } = await import('hls.js');
+      if (token !== this.loadToken) return;
+      if (!Hls.isSupported()) return fail();
+      const h = this.hls = new Hls({ enableWorker: true, backBufferLength: 30, manifestLoadingMaxRetry: 1, levelLoadingMaxRetry: 2 });
+      h.on(Hls.Events.ERROR, (_e, data) => {
+        if (!data.fatal || this.hls !== h) return;
+        if (data.type === Hls.ErrorTypes.MEDIA_ERROR && !h.recovered) { h.recovered = true; h.recoverMediaError(); return; }
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR && h.started && !h.retried) { h.retried = true; h.startLoad(); return; }
+        this.destroyEngines();
+        fail();
+      });
+      h.on(Hls.Events.MANIFEST_PARSED, () => { h.started = true; if (play) this.el.play().catch(() => this.dispatchEvent(new Event('state'))); });
+      h.loadSource(url);
+      h.attachMedia(this.el);
+      return;
+    }
+    if (step === 'mpegts') {
+      const mod = await import('mpegts.js');
+      const mpegts = mod.default || mod;
+      if (token !== this.loadToken) return;
+      if (!mpegts.getFeatureList().mseLivePlayback) return fail();
+      mpegts.LoggingControl.enableAll = false;
+      const pl = this.ts = mpegts.createPlayer({ type: 'mpegts', isLive: true, url }, { enableWorker: false, lazyLoad: false, liveBufferLatencyChasing: false, autoCleanupSourceBuffer: true });
+      pl.on(mpegts.Events.ERROR, () => { if (this.ts !== pl) return; this.destroyEngines(); fail(); });
+      pl.attachMediaElement(this.el);
+      pl.load();
+      if (play) Promise.resolve(pl.play()).catch(() => this.dispatchEvent(new Event('state')));
+    }
+  }
+
+  async onError() {
+    const err = this.active.error;
+    const track = this.track;
+    if (!track) return;
+    // transmisiones: siguiente método de reproducción
+    if (track.remote && !this.tx && this.remoteSteps && this.remoteStep < this.remoteSteps.length - 1) {
+      this.remoteStep++;
+      await this.attachRemote(true, this.loadToken);
+      return;
+    }
+    // escritorio: último recurso con FFmpeg (archivos y transmisiones)
+    if (platform.canTranscode && !this.tx && !this.fellBack) {
+      this.fellBack = true;
+      const token = this.loadToken;
+      let decision = null;
+      if (track.remote) {
+        const info = await platform.probe(track.src).catch(() => null);
+        if (token !== this.loadToken) return;
+        if (info?.ok) { this.probe = info; decision = info.decision; if (info.video) this.kind = 'video'; else if (info.audio?.length) this.kind = 'audio'; }
+      }
+      this.tx = decision?.mode === 'transcode'
+        ? { ...decision, audioTrack: 0 }
+        : { mode: 'transcode', audioOnly: this.kind !== 'video' && !track.remote, vcopy: !!decision && this.probe?.video?.codec === 'h264', acopy: false, audioTrack: 0 };
+      const at = track.remote ? 0 : (this.active.currentTime || 0);
+      await this.attachSource(this.el, at, true, token);
+      if (track.remote) this.dispatchEvent(new CustomEvent('loaded', { detail: { track, probe: this.probe } }));
+      return;
+    }
+    this.dispatchEvent(new CustomEvent('error', { detail: track.remote ? 'streamFailed' : err?.code === 4 ? 'unsupported' : 'failed' }));
     // salta a la siguiente después de un momento
-    if (!this.track?.remote) setTimeout(() => { if (this.active.error && this.hasNext()) this.next(); }, 1800);
+    if (!track.remote) setTimeout(() => { if (this.active.error && this.hasNext()) this.next(); }, 1800);
   }
 
   onEnded() {
+    // un canal en vivo que se corta se reconecta (hasta 3 veces) en lugar de pasar al siguiente
+    if (this.track?.remote && (this.track.group || this.track.hls || this.ts || this.hls || !this.duration)) {
+      this.liveRetries = (this.liveRetries || 0) + 1;
+      if (this.liveRetries <= 3) { setTimeout(() => this.loadAt(this.pos, { play: true, keepRetries: true }), 1500); return; }
+    }
     if (this.repeat === 'one') { this.seek(0); this.play(); return; }
     if (this.hasNext()) this.next();
     else if (this.repeat === 'all' && this.order.length) this.loadAt(0, { play: true });
@@ -251,14 +319,14 @@ export class Player extends EventTarget {
     if (!this.track) return;
     this.active.pause();
     if (this.tx) await this.attachSource(this.el, 0, false, this.loadToken);
-    else if (this.track.remote) { this.destroyHls(); this.active.removeAttribute('src'); this.active.load(); this.restartRemote = true; }
+    else if (this.track.remote) { this.destroyEngines(); this.active.removeAttribute('src'); this.active.load(); this.restartRemote = true; }
     else this.active.currentTime = 0;
     this.dispatchEvent(new Event('time'));
     this.dispatchEvent(new Event('state'));
     this.dispatchEvent(new Event('stopped'));
   }
 
-  stop() { this.destroyHls(); this.active.pause(); this.active.removeAttribute('src'); this.active.load(); this.track = null; this.tx = null; this.dispatchEvent(new CustomEvent('track', { detail: null })); }
+  stop() { this.destroyEngines(); this.active.pause(); this.active.removeAttribute('src'); this.active.load(); this.track = null; this.tx = null; this.dispatchEvent(new CustomEvent('track', { detail: null })); }
 
   next() {
     if (this.hasNext()) return this.loadAt(this.pos + 1);
@@ -272,6 +340,7 @@ export class Player extends EventTarget {
 
   async seek(t) {
     if (!this.track) return;
+    if (this.track.remote && !this.duration) return;
     t = Math.max(0, Math.min(t, (this.duration || Infinity) - 0.25));
     if (this.tx) {
       const playing = !this.paused || this.active.ended;

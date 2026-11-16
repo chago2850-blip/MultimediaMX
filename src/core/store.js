@@ -51,5 +51,6 @@ export const DEFAULT_SETTINGS = {
   lyrics: { online: true, size: 'm', autoOpen: true },
   resume: true,
   visualizer: true,
-  relativePaths: true
+  relativePaths: true,
+  tvMode: 'auto' // auto | on | off
 };

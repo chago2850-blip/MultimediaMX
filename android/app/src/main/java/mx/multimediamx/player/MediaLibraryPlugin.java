@@ -9,6 +9,11 @@
 package mx.multimediamx.player;
 
 import android.Manifest;
+import android.app.UiModeManager;
+import android.content.Context;
+import android.content.pm.PackageManager;
+import android.content.res.Configuration;
+import android.view.WindowManager;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
@@ -27,7 +32,14 @@ import com.getcapacitor.annotation.PermissionCallback;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLEncoder;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.io.OutputStream;
 import java.io.RandomAccessFile;
 import java.net.InetAddress;
@@ -133,6 +145,191 @@ public class MediaLibraryPlugin extends Plugin {
         }
     }
 
+    // ------------------------------------------------------------------ dispositivo
+    @PluginMethod
+    public void deviceInfo(PluginCall call) {
+        Context ctx = getContext();
+        boolean tv = false;
+        UiModeManager ui = (UiModeManager) ctx.getSystemService(Context.UI_MODE_SERVICE);
+        if (ui != null && ui.getCurrentModeType() == Configuration.UI_MODE_TYPE_TELEVISION) tv = true;
+        PackageManager pm = ctx.getPackageManager();
+        if (pm.hasSystemFeature(PackageManager.FEATURE_LEANBACK) || pm.hasSystemFeature("android.software.leanback_only")) tv = true;
+        boolean tvBuild = ctx.getPackageName().endsWith(".tv");
+        JSObject r = new JSObject();
+        r.put("tv", tv || tvBuild);
+        r.put("tvBuild", tvBuild);
+        r.put("sdk", Build.VERSION.SDK_INT);
+        r.put("model", Build.MANUFACTURER + " " + Build.MODEL);
+        call.resolve(r);
+    }
+
+    @PluginMethod
+    public void keepAwake(PluginCall call) {
+        final boolean on = Boolean.TRUE.equals(call.getBoolean("on", false));
+        getActivity().runOnUiThread(() -> {
+            if (on) getActivity().getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            else getActivity().getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        });
+        call.resolve();
+    }
+
+    // ------------------------------------------------------------------ red: redirecciones, listas en línea y proxy
+    private static final String UA = "VLC/3.0.21 LibVLC/3.0.21";
+
+    /** Abre una conexión siguiendo redirecciones, incluso de http a https (bit.ly, etc.). */
+    private static HttpURLConnection open(String url, String range) throws IOException {
+        String current = url;
+        for (int hop = 0; hop < 8; hop++) {
+            HttpURLConnection c = (HttpURLConnection) new URL(current).openConnection();
+            c.setInstanceFollowRedirects(false);
+            c.setConnectTimeout(15000);
+            c.setReadTimeout(30000);
+            c.setRequestProperty("User-Agent", UA);
+            c.setRequestProperty("Accept", "*/*");
+            if (range != null) c.setRequestProperty("Range", range);
+            int code = c.getResponseCode();
+            if (code >= 300 && code < 400 && c.getHeaderField("Location") != null) {
+                current = new URL(new URL(current), c.getHeaderField("Location")).toString();
+                c.disconnect();
+                continue;
+            }
+            return c;
+        }
+        throw new IOException("Demasiadas redirecciones");
+    }
+
+    private static byte[] readAll(InputStream in, int limit) throws IOException {
+        ByteArrayOutputStream bo = new ByteArrayOutputStream();
+        byte[] buf = new byte[64 * 1024];
+        int n;
+        while ((n = in.read(buf)) > 0) {
+            bo.write(buf, 0, n);
+            if (bo.size() > limit) break;
+        }
+        return bo.toByteArray();
+    }
+
+    private static String decode(byte[] b) {
+        String t = new String(b, StandardCharsets.UTF_8);
+        if (t.indexOf('�') >= 0) t = new String(b, StandardCharsets.ISO_8859_1);
+        return t;
+    }
+
+    /** Revisa qué hay en una URL: lista M3U (devuelve el texto), HLS o transmisión binaria. */
+    @PluginMethod
+    public void peek(PluginCall call) {
+        final String url = call.getString("url");
+        if (url == null) { call.reject("url"); return; }
+        pool.execute(() -> {
+            JSObject r = new JSObject();
+            HttpURLConnection c = null;
+            try {
+                c = open(url, null);
+                int code = c.getResponseCode();
+                String ct = c.getContentType() == null ? "" : c.getContentType();
+                r.put("ok", code >= 200 && code < 300);
+                r.put("status", code);
+                r.put("contentType", ct);
+                r.put("finalUrl", c.getURL().toString());
+                r.put("binary", false);
+                if (code < 200 || code >= 300) { call.resolve(r); return; }
+                String low = ct.toLowerCase(Locale.ROOT);
+                if ((low.startsWith("audio/") || low.startsWith("video/")) && !low.contains("mpegurl")) {
+                    r.put("binary", true); call.resolve(r); return;
+                }
+                InputStream in = c.getInputStream();
+                byte[] head = new byte[4096];
+                int got = 0, n;
+                while (got < head.length && (n = in.read(head, got, head.length - got)) > 0) got += n;
+                boolean bin = got > 0 && head[0] == 0x47;
+                for (int i = 0; i < got && !bin; i++) if (head[i] == 0) bin = true;
+                if (bin) { r.put("binary", true); call.resolve(r); return; }
+                byte[] rest = readAll(in, 40 * 1024 * 1024);
+                byte[] all = new byte[got + rest.length];
+                System.arraycopy(head, 0, all, 0, got);
+                System.arraycopy(rest, 0, all, got, rest.length);
+                r.put("text", decode(all));
+                call.resolve(r);
+            } catch (Exception e) {
+                r.put("ok", false);
+                r.put("status", 0);
+                r.put("error", String.valueOf(e.getMessage()));
+                call.resolve(r);
+            } finally {
+                if (c != null) c.disconnect();
+            }
+        });
+    }
+
+    private String proxied(String absolute) {
+        try {
+            return "http://127.0.0.1:" + server.getLocalPort() + "/p?k=" + token + "&u=" + URLEncoder.encode(absolute, "UTF-8");
+        } catch (Exception e) {
+            return absolute;
+        }
+    }
+
+    private static final Pattern URI_ATTR = Pattern.compile("URI=\"([^\"]+)\"");
+
+    /** Reescribe una lista HLS para que segmentos y claves también pasen por el proxy. */
+    private String rewriteHls(String text, String base) {
+        StringBuilder sb = new StringBuilder();
+        for (String line : text.split("\r?\n")) {
+            String tl = line.trim();
+            if (tl.isEmpty()) { sb.append('\n'); continue; }
+            try {
+                if (tl.startsWith("#")) {
+                    Matcher m = URI_ATTR.matcher(line);
+                    StringBuffer out = new StringBuffer();
+                    while (m.find()) m.appendReplacement(out, Matcher.quoteReplacement("URI=\"" + proxied(new URL(new URL(base), m.group(1)).toString()) + "\""));
+                    m.appendTail(out);
+                    sb.append(out).append('\n');
+                } else {
+                    sb.append(proxied(new URL(new URL(base), tl).toString())).append('\n');
+                }
+            } catch (Exception e) {
+                sb.append(line).append('\n');
+            }
+        }
+        return sb.toString();
+    }
+
+    private void proxy(String url, String method, String range, OutputStream out) throws IOException {
+        HttpURLConnection c = null;
+        try {
+            c = open(url, range);
+            int code = c.getResponseCode();
+            String ct = c.getContentType();
+            String finalUrl = c.getURL().toString();
+            String low = ct == null ? "" : ct.toLowerCase(Locale.ROOT);
+            boolean hlsList = code == 200 && (low.contains("mpegurl") || finalUrl.toLowerCase(Locale.ROOT).split("\\?")[0].endsWith(".m3u8"));
+            if (hlsList) {
+                String text = decode(readAll(c.getInputStream(), 8 * 1024 * 1024));
+                if (text.contains("#EXT-X-") || text.contains("#EXTINF")) {
+                    byte[] body = rewriteHls(text, finalUrl).getBytes(StandardCharsets.UTF_8);
+                    head(out, 200, "OK", "application/vnd.apple.mpegurl", body.length, null);
+                    if (!method.equals("HEAD")) out.write(body);
+                    out.flush();
+                    return;
+                }
+                byte[] body = text.getBytes(StandardCharsets.UTF_8);
+                head(out, 200, "OK", ct, body.length, null);
+                if (!method.equals("HEAD")) out.write(body);
+                return;
+            }
+            long len = c.getContentLengthLong();
+            head(out, code, code == 206 ? "Partial Content" : code < 400 ? "OK" : "Error", ct, len, c.getHeaderField("Content-Range"));
+            if (method.equals("HEAD") || code >= 400) return;
+            InputStream in = c.getInputStream();
+            byte[] buf = new byte[64 * 1024];
+            int n;
+            while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+            out.flush();
+        } finally {
+            if (c != null) c.disconnect();
+        }
+    }
+
     // ------------------------------------------------------------------ servidor local con soporte de Range
     @PluginMethod
     public void server(PluginCall call) {
@@ -206,7 +403,13 @@ public class MediaLibraryPlugin extends Plugin {
                     if (e > 0) q.put(kv.substring(0, e), URLDecoder.decode(kv.substring(e + 1), "UTF-8"));
                 }
             }
-            if (!token.equals(q.get("k")) || q.get("p") == null) { head(out, 403, "Forbidden", null, 0, null); return; }
+            if (!token.equals(q.get("k"))) { head(out, 403, "Forbidden", null, 0, null); return; }
+            if (target.startsWith("/p?") && q.get("u") != null) {
+                try { proxy(q.get("u"), method, range, out); }
+                catch (IOException e) { try { head(out, 502, "Bad Gateway", null, 0, null); } catch (IOException ignored) { } }
+                return;
+            }
+            if (q.get("p") == null) { head(out, 400, "Bad Request", null, 0, null); return; }
             File f = new File(q.get("p"));
             if (!f.isFile() || !f.canRead()) { head(out, 404, "Not Found", null, 0, null); return; }
 

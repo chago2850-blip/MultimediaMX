@@ -38,6 +38,7 @@ const P = {
   edit: '<path d="M4 20h4L19 9l-4-4L4 16z" stroke-linejoin="round"/>',
   check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
   globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 3.7 5.5 3.7 9s-1.2 6.5-3.7 9c-2.5-2.5-3.7-5.5-3.7-9S9.5 5.5 12 3Z"/>',
+  tv: '<rect x="2.5" y="5" width="19" height="12.5" rx="2"/><path d="M8 21h8M12 17.5V21"/>',
   phone: '<rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/>',
   speed: '<path d="M4.5 17a8 8 0 1 1 15 0"/><path d="m12 13 4-4"/>',
   back: '<path d="M15 5l-7 7 7 7"/>',

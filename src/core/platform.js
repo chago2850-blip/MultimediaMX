@@ -103,6 +103,8 @@ function desktop() {
     reveal: (src) => m.reveal(src),
     openExternal: (url) => m.openExternal(url),
     async httpGet(url) { return m.httpGet(url); },
+    peek: (url) => m.httpPeek(url),
+    proxyUrl: null,
     pathForFile: (f) => m.pathForFile(f),
     takePending: () => m.takePending(),
     onOpenFiles: (cb) => m.onOpenFiles(cb),
@@ -211,6 +213,21 @@ function web(cap) {
     async exists(src) { return !src.startsWith('mem:') || blobs.has(src); },
     async reveal() {},
     openExternal: (url) => window.open(url, '_blank'),
+    async peek(url) {
+      if (native) return MediaLibrary.peek({ url });
+      try {
+        const r = await fetch(url);
+        const ct = r.headers.get('content-type') || '';
+        if (/^(audio|video)\//.test(ct) && !/mpegurl/.test(ct)) return { ok: r.ok, status: r.status, contentType: ct, finalUrl: r.url, text: null, binary: true };
+        return { ok: r.ok, status: r.status, contentType: ct, finalUrl: r.url, text: await r.text(), binary: false };
+      } catch (e) { return { ok: false, status: 0, error: String(e) }; }
+    },
+    proxyUrl: native ? async (url) => {
+      srv = srv || await MediaLibrary.server();
+      return `http://127.0.0.1:${srv.port}/p?k=${srv.token}&u=${encodeURIComponent(url)}`;
+    } : null,
+    async deviceInfo() { return native ? MediaLibrary.deviceInfo().catch(() => ({})) : {}; },
+    keepAwake(on) { if (native) MediaLibrary.keepAwake({ on: !!on }).catch(() => {}); },
     async httpGet(url) {
       try {
         if (native) {

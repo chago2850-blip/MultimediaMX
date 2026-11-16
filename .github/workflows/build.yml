@@ -82,19 +82,21 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npx cap sync android
-      - name: Compilar APK
+      - name: Compilar APK (teléfono) y APK (Android TV / Google TV)
         working-directory: android
         env:
           ANDROID_SDK_ROOT: ${{ env.ANDROID_HOME }}
         run: |
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace
+          ./gradlew assembleMovilDebug assembleTvDebug --no-daemon --stacktrace
       - name: Renombrar APK
         run: |
           VERSION=$(node -p "require('./package.json').version")
           mkdir -p release
-          cp android/app/build/outputs/apk/debug/app-debug.apk "release/MultimediaMX-${VERSION}-Android.apk"
+          cp android/app/build/outputs/apk/movil/debug/app-movil-debug.apk "release/MultimediaMX-${VERSION}-Android.apk"
+          cp android/app/build/outputs/apk/tv/debug/app-tv-debug.apk "release/MultimediaMX-${VERSION}-AndroidTV.apk"
+          ls -la release
       - uses: actions/upload-artifact@v4
         with:
           name: MultimediaMX-android
@@ -145,7 +147,9 @@ jobs:
             | macOS Intel | `MultimediaMX-*-macOS-x64.dmg` |
             | Linux (cualquier distribución) | `MultimediaMX-*-Linux-x86_64.AppImage` |
             | Debian / Ubuntu / Mint | `multimediamx_*_amd64.deb` |
-            | Android 7.0 o superior | `MultimediaMX-*-Android.apk` |
+            | Android 7.0 o superior (teléfono / tableta) | `MultimediaMX-*-Android.apk` |
+            | Android TV / Google TV (TV Box, Xiaomi TV Box S, Chromecast con Google TV) | `MultimediaMX-*-AndroidTV.apk` |
 
             **macOS:** la app no está firmada por Apple. La primera vez, haz clic derecho sobre MultimediaMX → «Abrir», o ejecuta `xattr -cr /Applications/MultimediaMX.app`.
             **Android:** permite la instalación desde «orígenes desconocidos».
+            **Android TV / Google TV:** instala el APK con una app como «Downloader» o «Send Files to TV». Se navega con las flechas del control, OK para elegir y Atrás para regresar. Ambas versiones pueden instalarse a la vez.

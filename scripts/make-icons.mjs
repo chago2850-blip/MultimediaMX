@@ -75,4 +75,24 @@ if (fs.existsSync(res)) {
     fs.writeFileSync(f, new Resvg(wrap).render().asPng());
   }
 }
+// Banner de Android TV / Google TV (320×180 dp → 640×360 px en xhdpi)
+{
+  const tvRes = path.join(root, 'android/app/src/tv/res/drawable-xhdpi');
+  if (fs.existsSync(path.dirname(tvRes))) {
+    const logo = Buffer.from(png(196)).toString('base64');
+    const banner = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">
+      <defs>
+        <linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1b1640"/><stop offset="1" stop-color="#0a0818"/></linearGradient>
+        <radialGradient id="r" cx="0.25" cy="0.5" r="0.6"><stop offset="0" stop-color="#8b5cf6" stop-opacity="0.45"/><stop offset="1" stop-color="#8b5cf6" stop-opacity="0"/></radialGradient>
+        <linearGradient id="t" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#3ee6ff"/><stop offset="1" stop-color="#ff5e8a"/></linearGradient>
+      </defs>
+      <rect width="640" height="360" fill="url(#g)"/><rect width="640" height="360" fill="url(#r)"/>
+      <image href="data:image/png;base64,${logo}" x="34" y="82" width="196" height="196"/>
+      <text x="250" y="190" font-family="DejaVu Sans, Arial, sans-serif" font-size="40" font-weight="700" fill="#eeedff">Multimedia<tspan fill="url(#t)">MX</tspan></text>
+      <text x="252" y="236" font-family="DejaVu Sans, Arial, sans-serif" font-size="26" fill="#9a97c6" letter-spacing="6">TV</text>
+    </svg>`;
+    fs.mkdirSync(tvRes, { recursive: true });
+    fs.writeFileSync(path.join(tvRes, 'banner.png'), new Resvg(banner, { font: { loadSystemFonts: true } }).render().asPng());
+  }
+}
 console.log('Iconos generados.');

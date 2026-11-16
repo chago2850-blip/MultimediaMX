@@ -251,6 +251,42 @@ function registerIpc() {
       return { ok: false, status: 0, error: String(e?.message || e) };
     }
   });
+  // Revisa una URL (sigue redirecciones de bit.ly, etc.) sin descargar transmisiones completas
+  ipcMain.handle('http-peek', async (_e, url) => {
+    if (!/^https?:\/\//i.test(url)) return { ok: false, status: 0 };
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 45000);
+    try {
+      const r = await net.fetch(url, { signal: ctrl.signal, redirect: 'follow', headers: { 'User-Agent': 'VLC/3.0.21 LibVLC/3.0.21', Accept: '*/*' } });
+      const ct = r.headers.get('content-type') || '';
+      const out = { ok: r.ok, status: r.status, contentType: ct, finalUrl: r.url || url, text: null, binary: false };
+      if (!r.ok || !r.body) { ctrl.abort(); return out; }
+      if (/^(audio|video)\//i.test(ct) && !/mpegurl/i.test(ct)) { out.binary = true; ctrl.abort(); return out; }
+      const reader = r.body.getReader();
+      const chunks = [];
+      let size = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (!size) {
+          const head = Buffer.from(value.subarray(0, 4096));
+          if (head.includes(0) || head[0] === 0x47) { out.binary = true; ctrl.abort(); return out; }
+        }
+        chunks.push(value);
+        size += value.length;
+        if (size > 40 * 1024 * 1024) { ctrl.abort(); break; }
+      }
+      const buf = Buffer.concat(chunks.map((c) => Buffer.from(c)));
+      let text = buf.toString('utf8');
+      if (text.includes('\uFFFD')) text = buf.toString('latin1');
+      out.text = text;
+      return out;
+    } catch (e) {
+      return { ok: false, status: 0, error: String(e?.message || e) };
+    } finally {
+      clearTimeout(timer);
+    }
+  });
   ipcMain.handle('exists', (_e, p) => fs.existsSync(p));
   ipcMain.handle('reveal', (_e, p) => shell.showItemInFolder(p));
   ipcMain.handle('open-external', (_e, url) => { if (/^https?:\/\//.test(url)) shell.openExternal(url); });

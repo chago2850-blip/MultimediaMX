@@ -59,9 +59,9 @@ export function promptText(title, value = '', placeholder = '') {
   });
 }
 
-export function promptFields(title, fields) {
+export function promptFields(title, fields, hint = '') {
   return modal(`
-    <h3>${esc(title)}</h3>
+    <h3>${esc(title)}</h3>${hint ? `<p class="sub modal-hint">${esc(hint)}</p>` : ''}
     ${fields.map((f) => `<label class="field-label">${esc(f.label)}<input class="field" name="${f.name}" value="${esc(f.value || '')}" /></label>`).join('')}
     <div class="modal-actions"><button class="btn ghost" data-a="no">${t('cancel')}</button><button class="btn primary" data-a="ok">${t('ok')}</button></div>`,
   (root, close) => {
@@ -123,6 +123,7 @@ export class VirtualList {
     this.inner = document.createElement('div');
     this.inner.className = 'vlist-inner';
     scroller.appendChild(this.inner);
+    scroller.__vlist = this; // para la navegación con el control remoto
     this.onScroll = () => this.paint();
     scroller.addEventListener('scroll', this.onScroll, { passive: true });
     this.ro = new ResizeObserver(() => this.paint());
@@ -139,7 +140,10 @@ export class VirtualList {
     this.last = key;
     let html = '';
     for (let i = start; i < end; i++) html += this.renderRow(this.items[i], i, i * this.rowHeight);
+    const fe = document.activeElement;
+    const focusedRow = fe && this.inner.contains(fe) ? fe.closest('[data-i]')?.dataset.i : null;
     this.inner.innerHTML = html;
+    if (focusedRow != null) this.inner.querySelector(`[data-i="${focusedRow}"]`)?.focus({ preventScroll: true });
   }
   refresh() { this.last = null; this.paint(); }
   destroy() { this.scroller.removeEventListener('scroll', this.onScroll); this.ro.disconnect(); }

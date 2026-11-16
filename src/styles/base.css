@@ -122,8 +122,8 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px;
 .c-duration { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
 .table-head .c-duration { text-align: right; }
 .vlist { position: relative; height: calc(100% - 140px); min-height: 300px; overflow-y: auto; margin: 0 -12px; padding: 0 12px; }
-#view:has(.vlist) { overflow: hidden; display: flex; flex-direction: column; padding-bottom: 6px; }
-#view:has(.vlist) .vlist { flex: 1; height: auto; }
+#view:has(.vlist) { overflow: clip; display: flex; flex-direction: column; padding-bottom: 6px; }
+#view:has(.vlist) .vlist { flex: 1; height: auto; min-height: 0; }
 .vlist-inner { position: relative; }
 .row { position: absolute; left: 0; right: 0; height: 54px; border-radius: 10px; cursor: default; transition: background .15s; }
 .row:hover, .pl-row:hover { background: var(--hover); }
@@ -412,3 +412,53 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px;
 .m3u-text { height: min(46vh, 380px); padding: 12px; resize: vertical; font-family: var(--mono); font-size: 12.5px; line-height: 1.55; white-space: pre; overflow: auto; user-select: text; tab-size: 2; }
 .m3u-status { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; color: var(--muted); font-size: 12px; }
 @media (max-width: 760px) { .modal-card .modal-actions { flex-wrap: wrap; } .modal-card .modal-actions .btn { flex: 1; justify-content: center; } }
+
+/* ------------------------------------------------------------ v1.3: listas grandes y abrir URL */
+.pl-filter { display: flex; gap: 10px; align-items: center; margin: -6px 0 14px; flex-wrap: wrap; }
+.pl-filter .search { flex: 1; min-width: 200px; max-width: 420px; height: 36px; }
+.pl-filter select { max-width: 280px; }
+.pl-vlist .pl-row { position: absolute; left: 0; right: 0; }
+.q-more { color: var(--muted); font-size: 12px; text-align: center; padding: 6px; }
+.modal-hint { margin: -6px 0 8px; line-height: 1.5; }
+
+/* ------------------------------------------------------------ v1.3: modo TV (control remoto) */
+.switch input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+.switch { position: relative; }
+.tv .switch:focus-within { outline: 3px solid var(--accent); outline-offset: 4px; border-radius: 10px; }
+.tv :focus { outline: none; }
+.tv :focus-visible, .tv .row:focus, .tv .pl-row:focus, .tv .q-row:focus, .tv .pl-card:focus, .tv #seek:focus, .tv #videoWrap:focus {
+  outline: 3px solid var(--accent) !important; outline-offset: 2px; border-radius: 12px;
+  box-shadow: 0 0 0 6px var(--focus-ring), 0 10px 30px rgba(0,0,0,.35);
+}
+.tv .btn:focus-visible, .tv .icon-btn:focus-visible, .tv #nav button:focus-visible, .tv .seg button:focus-visible, .tv .skin-card:focus-visible { transform: scale(1.06); }
+.tv .play-btn:focus-visible { transform: scale(1.12); outline-offset: 4px; border-radius: 50%; }
+.tv .icon-btn:focus-visible { border-radius: 50%; background: var(--hover-strong); color: var(--text); }
+.tv .row:focus, .tv .pl-row:focus, .tv .q-row:focus { background: var(--active) !important; outline-offset: -3px; }
+.tv .row:focus .row-play, .tv .pl-row:focus .row-play { display: grid; }
+.tv .row:focus .num, .tv .pl-row:focus .num { visibility: hidden; }
+.tv .row:focus-within .c-x, .tv .pl-row:focus-within .c-x { opacity: 1; }
+.tv .pl-card:focus { transform: scale(1.04); background: var(--hover); }
+.tv .pl-card:focus .pl-play { opacity: 1; transform: none; }
+.tv .vslider:focus-visible { outline: none !important; box-shadow: none; }
+.tv .vslider:focus-visible .vthumb { transform: scale(1.35); box-shadow: 0 0 0 4px var(--accent), 0 0 18px var(--accent); }
+.tv #seek:focus .seek-thumb { opacity: 1; transform: scale(1.3); }
+.tv .ly-tools:focus-within { opacity: 1; }
+
+#seek:focus { outline: none; }
+#seek:focus-visible .seek-track { height: 6px; }
+#app.video-fs.fs-ui #bar { opacity: 1; }
+.tv .c-x { opacity: 0; }
+
+.tv .vslider.editing .vthumb { transform: scale(1.5); box-shadow: 0 0 0 5px var(--accent-2), 0 0 24px var(--accent-2); }
+.tv .vslider.editing::after { content: '↑↓'; position: absolute; top: -18px; font-size: 11px; color: var(--accent-2); font-weight: 700; }
+.tv textarea.editing { box-shadow: 0 0 0 3px var(--accent-2) !important; }
+/* pantallas bajas (TV a 540 px): encabezados más compactos para dejar espacio a las listas */
+@media (max-height: 620px) {
+  #view { padding-top: 16px; }
+  .view-head { margin-bottom: 12px; gap: 10px; }
+  .view-head h1 { font-size: 26px; }
+  .view-head .sub { margin-top: 2px; }
+  .head-actions .btn { height: 32px; padding: 0 12px; }
+  .pl-filter { margin: -2px 0 8px; }
+  .pl-filter .search, .pl-filter select { height: 32px; }
+}

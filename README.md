@@ -27,7 +27,8 @@ Los instaladores se generan automáticamente en **[Releases](https://github.com/
 | macOS Intel | `MultimediaMX-x.y.z-macOS-x64.dmg` |
 | Linux (cualquier distribución) | `MultimediaMX-x.y.z-Linux-x86_64.AppImage` |
 | Debian / Ubuntu / Mint | `multimediamx_x.y.z_amd64.deb` |
-| Android 7.0 o superior | `MultimediaMX-x.y.z-Android.apk` |
+| Android 7.0 o superior (teléfono / tableta) | `MultimediaMX-x.y.z-Android.apk` |
+| Android TV / Google TV (TV Box, Xiaomi TV Box S…) | `MultimediaMX-x.y.z-AndroidTV.apk` |
 
 > **macOS:** la app no está firmada por Apple. La primera vez haz clic derecho → **Abrir**, o ejecuta `xattr -cr /Applications/MultimediaMX.app`.
 > **Android:** permite instalar apps de «orígenes desconocidos».
@@ -37,6 +38,8 @@ Los instaladores se generan automáticamente en **[Releases](https://github.com/
 - **Casi cualquier formato.** En escritorio se reproducen de forma nativa MP3, AAC/M4A, FLAC, OGG/Opus, WAV, MP4, MKV, WebM y MOV; todo lo demás (AVI, WMV, FLV, MPG, VOB, TS, 3GP, RMVB, WMA, APE, AIFF, AC3, DTS, ALAC, WavPack…, o un MKV con audio AC3/DTS) se **convierte al vuelo con FFmpeg**, que viene incluido. Si un archivo «nativo» falla, se reintenta convirtiéndolo automáticamente.
 - **Listas M3U / M3U8.** Importa listas (extendidas o simples, rutas relativas o absolutas, `file://`, URLs de radio e IPTV con `tvg-logo` y `group-title`), crea tus propias listas, reordénalas arrastrando, bórralas con un clic y exporta a `.m3u8`.
 - **Listas IPTV y radios en línea:** si una entrada es la URL de otra lista (por ejemplo `https://www.tdtchannels.com/lists/tv.m3u`), se descarga y se despliega con todos sus canales, grupos y logos. Los canales HLS (`.m3u8`) se reproducen en vivo; en escritorio, si un canal falla se reintenta con FFmpeg.
+- **Listas desde cualquier enlace** (botón «Abrir URL»): también enlaces cortos como bit.ly y direcciones sin extensión; la app sigue las redirecciones y averigua por el contenido si es una lista, un canal HLS, MPEG-TS o una radio. Las listas grandes (miles de canales) se muestran con filtro por grupo y búsqueda. Los canales se reproducen con el método que funcione (nativo, HLS, MPEG-TS y, en escritorio, FFmpeg) y se reconectan solos si se cortan.
+- **Versión para Android TV / Google TV:** instalador aparte, aparece en el inicio de Google TV, se maneja por completo con el control remoto (flechas, OK y Atrás; en el ecualizador, OK para editar una banda) y mantiene la pantalla encendida mientras reproduce.
 - **Escribir listas .m3u** desde la Biblioteca: un editor de texto que se rellena con las pistas que estás viendo (respeta la búsqueda y los filtros), donde puedes escribir o pegar rutas y URLs, y guardar en Listas o exportar el archivo. Cualquier lista se puede «Editar como .m3u».
 - **Ecualizador de 10 bandas** (31 Hz – 16 kHz, ±12 dB) con curva de respuesta, 14 preajustes (Rock, Pop, Jazz, Clásica, Electrónica, Latina, Cine…), preajustes propios, preamplificador, balance y limitador contra saturación.
 - **Letras en línea** cuando hay conexión: LRCLIB (letras sincronizadas línea por línea) y lyrics.ovh como respaldo. También lee letras incrustadas en las etiquetas y archivos `.lrc` junto a la canción. Funciona con canciones **y videos** (deduce artista y título del nombre del archivo, p. ej. `Artista - Canción (Video Oficial).mp4`). Toca una línea para saltar a ese momento; puedes corregir la búsqueda a mano.

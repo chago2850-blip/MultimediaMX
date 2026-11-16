@@ -6,7 +6,7 @@ import './styles/skins.css';
 import { kv, saveLater, DEFAULT_SETTINGS } from './core/store.js';
 import { platform, kindOf, baseName, extOf } from './core/platform.js';
 import { isUrl } from './core/m3u.js';
-import { expandRemoteLists, looksLikeM3U } from './core/remote.js';
+import { expandRemoteLists, needsInspection } from './core/remote.js';
 import { audio, PRESETS } from './core/audio.js';
 import { Player } from './core/player.js';
 import { t, setLang } from './i18n/index.js';
@@ -15,6 +15,9 @@ import { $, $$, toast, fmtTime } from './ui/dom.js';
 import { renderView, refreshView } from './ui/views.js';
 import { initNowPlaying, onTrackChange, renderLyricsState, updateNowPlaying } from './ui/nowplaying.js';
 import { renderEq } from './ui/eq.js';
+import { enableTV, disableTV, isTV } from './ui/tvnav.js';
+import * as tvnav from './ui/tvnav.js';
+import { closeMenu } from './ui/dom.js';
 
 // ------------------------------------------------------------------ estado
 export const S = {
@@ -208,17 +211,19 @@ export function toTrack(item) {
 
 /** Despliega las listas M3U en línea que haya dentro de items (modifica el arreglo). */
 export async function expandItems(items) {
-  if (!items.some((i) => looksLikeM3U(i.src) && !i.hls)) return 0;
-  toast(t('loadingRemoteList'), 15000);
+  if (!items.some(needsInspection)) return 0;
+  toast(t('loadingRemoteList'), 60000);
   const before = items.length;
-  const n = await expandRemoteLists(items, (u) => platform.httpGet(u));
-  if (n) toast(t('remoteListLoaded', { n: items.length - before + n }), 3500);
-  else toast(t('remoteListFailed'), 4500);
+  const pending = items.filter(needsInspection).length;
+  const n = await expandRemoteLists(items, (u) => platform.peek(u));
+  if (n) toast(t('remoteListLoaded', { n: (items.length - before + n).toLocaleString() }), 3500);
+  else if (items.some(needsInspection) && items.filter(needsInspection).length === pending) toast(t('remoteListFailed'), 4500);
+  else toast(t('ready'), 800);
   return n;
 }
 
 export async function playList(items, index = 0, { shuffle = null } = {}) {
-  if (items.some((i) => looksLikeM3U(i.src) && !i.hls)) {
+  if (items.some(needsInspection)) {
     const target = items[index];
     const n = await expandItems(items);
     if (n) {
@@ -302,6 +307,14 @@ export function renderNav() {
 }
 
 export function renderBar() {
+  // conservar el foco del control remoto al redibujar la barra
+  const fe = document.activeElement;
+  const keep = fe && fe.closest?.('#barControls, #barRight') ? (fe.dataset.a ? `[data-a="${fe.dataset.a}"]` : fe.id ? `#${fe.id}` : null) : null;
+  renderBarInner();
+  if (keep) $(`#bar ${keep}`)?.focus({ preventScroll: true });
+}
+
+function renderBarInner() {
   const playing = !player.paused && !!player.track;
   const rep = S.settings.repeat;
   $('#barControls').innerHTML = `
@@ -459,6 +472,43 @@ function toggleMini() {
   platform.setAlwaysOnTop(mini);
 }
 
+// ------------------------------------------------------------------ botón Atrás (control remoto / Android)
+let lastBack = 0;
+export function goBack() {
+  if (document.querySelector('.ctx-menu')) { closeMenu(); return true; }
+  if ($('#modal.show')) { const no = $('#modal [data-a=no]'); if (no) no.click(); else $('#modal').click(); return true; }
+  if (fsOn) { toggleFullscreen(); return true; }
+  if (mini) { toggleMini(); return true; }
+  const narrow = matchMedia('(max-width: 760px)').matches;
+  if (S.panel && (S.settings.skin !== 'estudio' || narrow)) { S.panel = null; applyPanel(); return true; }
+  if (S.stageOpen) { openStage(false); return true; }
+  if (S.view === 'playlist') { go('playlists'); return true; }
+  if (S.view !== 'library') { go('library'); return true; }
+  if (platform.name === 'android') {
+    if (Date.now() - lastBack < 2200) { import('@capacitor/app').then(({ App }) => App.exitApp()); return true; }
+    lastBack = Date.now();
+    toast(t('backAgainToExit'), 2200);
+    return true;
+  }
+  return false;
+}
+
+export function applyTvMode(info = {}) {
+  const mode = S.settings.tvMode || 'auto';
+  const on = mode === 'on' || (mode === 'auto' && (!!info.tv || /[?&]tv=1/.test(location.search)));
+  if (on) {
+    enableTV({
+      back: goBack, toggle: () => player.toggle(), next: () => player.next(), prev: () => player.prev(), stop: () => player.halt(),
+      seek: (d) => player.seek(player.currentTime + d), fullscreen: () => { if (player.kind === 'video') toggleFullscreen(); }, isFullscreen: () => fsOn
+    });
+    $('#videoWrap').tabIndex = 0;
+  } else {
+    disableTV();
+    $('#videoWrap').removeAttribute('tabindex');
+  }
+  return on;
+}
+
 // ------------------------------------------------------------------ teclado
 function initKeys() {
   document.addEventListener('keydown', (e) => {
@@ -476,6 +526,7 @@ function initKeys() {
     else if (k === 'p') player.prev();
     else if (k === 'm') ACTIONS.mute();
     else if (k === 'x') player.halt();
+    else if (e.key === 'MediaStop') player.halt();
     else if (k === 'l') ACTIONS.lyrics();
     else if (k === 's') ACTIONS.shuffle();
     else if (k === 'r') ACTIONS.repeat();
@@ -573,7 +624,7 @@ async function updateMediaSession(tr) {
 function saveSession() {
   if (!S.settings.resume) return;
   const q = player.queue.filter((x) => !x.ephemeral);
-  if (q.length !== player.queue.length) return;
+  if (q.length !== player.queue.length || q.length > 3000) return;
   kv.set('session', {
     queue: q.map((x) => ({ src: x.src, title: x.title, artist: x.artist, album: x.album, duration: x.duration, kind: x.kind, remote: x.remote })),
     order: player.order, pos: player.pos, time: player.track && !player.track.remote ? player.currentTime : 0
@@ -618,7 +669,12 @@ async function boot() {
 
   // eventos del reproductor
   player.addEventListener('time', () => { if (!dragging) paintTime(); });
-  player.addEventListener('state', () => { renderBar(); $('#app').classList.toggle('is-playing', !player.paused && !!player.track); });
+  player.addEventListener('state', () => {
+    renderBar();
+    const playing = !player.paused && !!player.track;
+    $('#app').classList.toggle('is-playing', playing);
+    platform.keepAwake?.(playing);
+  });
   player.addEventListener('buffering', (e) => $('#app').classList.toggle('buffering', !!e.detail));
   player.addEventListener('track', (e) => {
     const tr = e.detail;
@@ -664,6 +720,14 @@ async function boot() {
   setInterval(saveSession, 5000);
   addEventListener('beforeunload', saveSession);
 
+  // modo TV (Android TV / Google TV o activado en Ajustes)
+  const info = platform.deviceInfo ? await platform.deviceInfo().catch(() => ({})) : {};
+  S.device = info;
+  if (applyTvMode(info) && S.settings.skin === 'estudio' && !settings) setSkin('aurora');
+  if (platform.name === 'android') {
+    import('@capacitor/app').then(({ App }) => App.addListener('backButton', () => goBack())).catch(() => {});
+  }
+
   // archivos abiertos desde el sistema (doble clic / «Abrir con»)
   platform.onOpenFiles((files) => openPaths(files, { play: true }));
   const pending = await platform.takePending();
@@ -678,4 +742,4 @@ async function boot() {
 boot();
 
 // Acceso para pruebas automatizadas y depuración
-window.__mmx = { S, player, audio, addEntries, playList, go, setSkin, openStage, setPanel, importPlaylists, createPlaylist };
+window.__mmx = { S, player, audio, addEntries, playList, go, setSkin, openStage, setPanel, importPlaylists, createPlaylist, expandItems, applyTvMode, goBack, isTV, tvnav };

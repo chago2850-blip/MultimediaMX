@@ -1,10 +1,10 @@
 // Vistas: biblioteca, listas, ajustes y cola — MultimediaMX — GPL-3.0-or-later
 import { S, player, go, persist, pickFiles, pickFolder, scanDevice, importPlaylists, exportPlaylist, createPlaylist, playList, queueTracks,
-  removeFromLibrary, playlistItemFromTrack, trackLabel, setSkin, coverOf, findBySrc } from '../main.js';
+  removeFromLibrary, playlistItemFromTrack, trackLabel, setSkin, coverOf, findBySrc, expandItems } from '../main.js';
 import { platform } from '../core/platform.js';
 import { t, setLang } from '../i18n/index.js';
 import { icon } from './icons.js';
-import { $, $$, esc, fmtTime, fmtTotal, toast, promptText, confirmBox, contextMenu, VirtualList } from './dom.js';
+import { $, $$, esc, fmtTime, fmtTotal, toast, promptText, promptFields, confirmBox, contextMenu, VirtualList } from './dom.js';
 import { renderEq } from './eq.js';
 import { openM3UEditor } from './m3ueditor.js';
 
@@ -28,7 +28,7 @@ export function renderView() {
 
 export function refreshView() {
   if (['library', 'music', 'videos'].includes(S.view) && vlist) return fillLibrary();
-  if (S.view === 'playlist') return markPlaying();
+  if (S.view === 'playlist') return vlist?.refresh();
   if (S.view === 'playlists') return renderPlaylists($('#view'));
 }
 
@@ -66,6 +66,7 @@ function renderLibrary(v) {
         ${platform.canScanFolders ? `<button class="btn ghost" data-a="folder">${icon('folder', 16)}<span>${t('addFolder')}</span></button>` : ''}
         ${platform.canScanDevice ? `<button class="btn ghost" data-a="device">${icon('phone', 16)}<span>${t('scanDevice')}</span></button>` : ''}
         <button class="btn ghost" data-a="m3u">${icon('import', 16)}<span>${t('importM3U')}</span></button>
+        <button class="btn ghost" data-a="url">${icon('globe', 16)}<span>${t('openUrl')}</span></button>
         <button class="btn ghost" data-a="write" title="${t('writeM3UHint')}">${icon('edit', 16)}<span>${t('writeM3U')}</span></button>
       </div>
     </div>
@@ -88,6 +89,7 @@ function renderLibrary(v) {
     if (a === 'device') scanDevice();
     if (a === 'm3u') importPlaylists();
     if (a === 'write') openM3UEditor({ name: S.query ? S.query : '', tracks: currentRows });
+    if (a === 'url') openUrl();
   };
   v.querySelector('.table-head').onclick = (e) => {
     const k = e.target.closest('[data-sort]')?.dataset.sort;
@@ -106,7 +108,7 @@ function renderLibrary(v) {
     if (!row) return;
     const i = +row.dataset.i;
     const b = e.target.closest('button');
-    if (b?.dataset.a === 'play' || (!b && matchMedia('(pointer: coarse)').matches)) playList(currentRows, i);
+    if (b?.dataset.a === 'play' || (!b && (matchMedia('(pointer: coarse)').matches || e.detail === 0))) playList(currentRows, i);
     else if (b?.dataset.a === 'add') addToPlaylistMenu(e, [currentRows[i]]);
     else if (b?.dataset.a === 'more') trackMenu(e, currentRows[i], i);
   });
@@ -145,13 +147,13 @@ function fillLibrary() {
 
 function rowHtml(tr, i, top) {
   const cur = player.track && player.track.src === tr.src;
-  return `<div class="row ${cur ? 'playing' : ''} ${i % 2 ? 'odd' : ''}" data-i="${i}" style="top:${top}px">
-    <span class="c-n"><span class="num">${i + 1}</span><button class="row-play" data-a="play" title="${t('play')}">${icon(cur && !player.paused ? 'pause' : 'play', 16)}</button>${cur ? '<span class="eq-anim"><i></i><i></i><i></i></span>' : ''}</span>
+  return `<div class="row ${cur ? 'playing' : ''} ${i % 2 ? 'odd' : ''}" tabindex="0" data-i="${i}" style="top:${top}px">
+    <span class="c-n"><span class="num">${i + 1}</span><button class="row-play" data-a="play" title="${t('play')}" tabindex="-1">${icon(cur && !player.paused ? 'pause' : 'play', 16)}</button>${cur ? '<span class="eq-anim"><i></i><i></i><i></i></span>' : ''}</span>
     <span class="c-title"><span class="kind">${icon(tr.kind === 'video' ? 'video' : 'music', 16)}</span><span class="t2"><span class="ellip">${esc(trackLabel(tr))}</span><small class="ellip m-sub">${esc(tr.artist || '')}</small></span></span>
     <span class="c-artist ellip">${esc(tr.artist || (tr.remote ? t('stream') : ''))}</span>
     <span class="c-album ellip">${esc(tr.album || '')}</span>
     <span class="c-duration">${tr.duration ? fmtTime(tr.duration) : ''}</span>
-    <span class="c-x"><button class="icon-btn xs" data-a="add" title="${t('addToPlaylist')}">${icon('plus', 16)}</button><button class="icon-btn xs" data-a="more">${icon('more', 16)}</button></span>
+    <span class="c-x"><button class="icon-btn xs" data-a="add" title="${t('addToPlaylist')}" tabindex="-1">${icon('plus', 16)}</button><button class="icon-btn xs" data-a="more" tabindex="-1">${icon('more', 16)}</button></span>
   </div>`;
 }
 
@@ -194,20 +196,21 @@ function renderPlaylists(v) {
       <div class="head-actions">
         <button class="btn primary" data-a="new">${icon('plus', 16)}<span>${t('newPlaylist')}</span></button>
         <button class="btn" data-a="m3u">${icon('import', 16)}<span>${t('importM3U')}</span></button>
+        <button class="btn" data-a="url">${icon('globe', 16)}<span>${t('openUrl')}</span></button>
         <button class="btn ghost" data-a="write">${icon('edit', 16)}<span>${t('writeM3U')}</span></button>
       </div>
     </div>
     ${S.playlists.length ? `<div class="pl-grid">${S.playlists.map((pl) => {
       const dur = pl.items.reduce((a, x) => a + (x.duration || 0), 0);
       const hue = [...pl.name].reduce((a, c) => a + c.charCodeAt(0), 0) % 360;
-      return `<div class="pl-card" data-id="${pl.id}" style="--h:${hue}">
-        <div class="pl-art"><div class="pl-mosaic" data-id="${pl.id}"></div>${icon('list', 34)}<button class="pl-play" data-a="play" title="${t('play')}">${icon('play', 22)}</button>
-          <button class="pl-del" data-a="del" title="${t('deletePlaylist')}">${icon('trash', 17)}</button></div>
+      return `<div class="pl-card" tabindex="0" data-id="${pl.id}" style="--h:${hue}">
+        <div class="pl-art"><div class="pl-mosaic" data-id="${pl.id}"></div>${icon('list', 34)}<button class="pl-play" data-a="play" title="${t('play')}" tabindex="-1">${icon('play', 22)}</button>
+          <button class="pl-del" data-a="del" title="${t('deletePlaylist')}" tabindex="-1">${icon('trash', 17)}</button></div>
         <div class="pl-name ellip">${esc(pl.name)}</div>
-        <div class="pl-meta">${pl.items.length} ${pl.items.length === 1 ? t('track') : t('tracks')}${dur ? ' · ' + fmtTotal(dur) : ''}</div>
+        <div class="pl-meta">${pl.items.length.toLocaleString()} ${pl.items.length === 1 ? t('track') : t('tracks')}${dur ? ' · ' + fmtTotal(dur) : ''}</div>
       </div>`;
     }).join('')}</div>` : `<div class="empty">${icon('list', 48)}<h2>${t('emptyPlaylists')}</h2><p>${t('emptyPlaylistsHint')}</p>
-      <div class="empty-actions"><button class="btn primary" data-a="new">${icon('plus', 16)}<span>${t('newPlaylist')}</span></button><button class="btn" data-a="m3u">${icon('import', 16)}<span>${t('importM3U')}</span></button></div></div>`}`;
+      <div class="empty-actions"><button class="btn primary" data-a="new">${icon('plus', 16)}<span>${t('newPlaylist')}</span></button><button class="btn" data-a="m3u">${icon('import', 16)}<span>${t('importM3U')}</span></button><button class="btn" data-a="url">${icon('globe', 16)}<span>${t('openUrl')}</span></button></div></div>`}`;
   v.onclick = async (e) => {
     const a = e.target.closest('[data-a]')?.dataset.a;
     const card = e.target.closest('.pl-card');
@@ -215,6 +218,7 @@ function renderPlaylists(v) {
       const name = await promptText(t('newPlaylistName'), '', t('newPlaylist'));
       if (name) { const pl = createPlaylist(name); go('playlist', pl.id); }
     } else if (a === 'm3u') importPlaylists();
+    else if (a === 'url') openUrl();
     else if (a === 'write') openM3UEditor();
     else if (card && a === 'del') {
       const pl = S.playlists.find((p) => p.id === card.dataset.id);
@@ -241,14 +245,19 @@ function renderPlaylists(v) {
   }
 }
 
+const plFilter = { id: null, q: '', group: '' };
+
 function renderPlaylist(v) {
   const pl = S.playlists.find((p) => p.id === S.playlistId);
   if (!pl) return go('playlists');
+  if (plFilter.id !== pl.id) Object.assign(plFilter, { id: pl.id, q: '', group: '' });
   const dur = pl.items.reduce((a, x) => a + (x.duration || 0), 0);
+  const groups = [...new Set(pl.items.map((i) => i.group).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const showFilter = groups.length > 1 || pl.items.length > 40;
   v.innerHTML = `
     <div class="view-head">
-      <div class="with-back"><button class="icon-btn" data-a="back">${icon('back', 20)}</button>
-        <div><h1 class="ellip">${esc(pl.name)}</h1><p class="sub">${pl.items.length} ${pl.items.length === 1 ? t('track') : t('tracks')}${dur ? ' · ' + fmtTotal(dur) : ''}</p></div></div>
+      <div class="with-back"><button class="icon-btn" data-a="back" title="${t('playlists')}">${icon('back', 20)}</button>
+        <div><h1 class="ellip">${esc(pl.name)}</h1><p class="sub" id="plCount"></p></div></div>
       <div class="head-actions">
         <button class="btn primary" data-a="play" ${pl.items.length ? '' : 'disabled'}>${icon('play', 16)}<span>${t('play')}</span></button>
         <button class="btn" data-a="shuffle" ${pl.items.length ? '' : 'disabled'}>${icon('shuffle', 16)}<span>${t('shuffleAll')}</span></button>
@@ -258,23 +267,54 @@ function renderPlaylist(v) {
         <button class="btn ghost danger-btn" data-a="delete">${icon('trash', 16)}<span>${t('deletePlaylist')}</span></button>
       </div>
     </div>
-    ${pl.items.length ? `<div class="pl-list">${pl.items.map((it, i) => `
-      <div class="pl-row row-static ${it.missing ? 'missing' : ''} ${player.track?.src === it.src ? 'playing' : ''}" data-i="${i}" data-src="${esc(it.src)}" draggable="true">
-        <span class="c-n"><span class="num">${i + 1}</span><button class="row-play" data-a="playOne">${icon('play', 16)}</button><span class="eq-anim"><i></i><i></i><i></i></span></span>
-        <span class="c-title"><span class="kind">${it.logo ? `<img class="logo" src="${esc(it.logo)}" alt="" />` : icon(it.remote ? 'globe' : it.kind === 'video' ? 'video' : 'music', 16)}</span>
+    ${showFilter ? `<div class="pl-filter">
+      <label class="search sm">${icon('search', 16)}<input type="search" class="pl-q" placeholder="${esc(t('filterList'))}" value="${esc(plFilter.q)}" /></label>
+      ${groups.length > 1 ? `<select class="field sm pl-group"><option value="">${t('allGroups')} (${groups.length})</option>${groups.map((g) => `<option value="${esc(g)}" ${plFilter.group === g ? 'selected' : ''}>${esc(g)}</option>`).join('')}</select>` : ''}
+    </div>` : ''}
+    ${pl.items.length ? '<div class="vlist pl-vlist" id="plList"></div>' : `<div class="empty">${icon('music', 44)}<h2>${t('emptyPlaylist')}</h2><p>${t('emptyPlaylistHint')}</p></div>`}`;
+
+  let rows = [];
+  const filtered = () => !!(plFilter.q.trim() || plFilter.group);
+  const listToPlay = () => (filtered() ? rows.map((r) => r.it) : pl.items);
+  const fill = () => {
+    const q = plFilter.q.trim().toLowerCase();
+    rows = [];
+    pl.items.forEach((it, idx) => {
+      if (plFilter.group && it.group !== plFilter.group) return;
+      if (q && !`${it.title || ''} ${it.artist || ''} ${it.group || ''} ${it.src}`.toLowerCase().includes(q)) return;
+      rows.push({ it, idx });
+    });
+    const c = $('#plCount', v);
+    if (c) c.textContent = `${pl.items.length.toLocaleString()} ${pl.items.length === 1 ? t('track') : t('tracks')}${filtered() ? ` · ${t('shown')} ${rows.length.toLocaleString()}` : ''}${dur ? ' · ' + fmtTotal(dur) : ''}`;
+    plList?.set(rows);
+  };
+  const el = $('#plList', v);
+  const plList = el ? new VirtualList(el, ROW_H, (r, i, top) => {
+    const it = r.it;
+    return `<div class="pl-row ${it.missing ? 'missing' : ''} ${player.track?.src === it.src ? 'playing' : ''}" tabindex="0" data-i="${i}" data-idx="${r.idx}" data-src="${esc(it.src)}" style="top:${top}px" draggable="${filtered() ? 'false' : 'true'}">
+        <span class="c-n"><span class="num">${r.idx + 1}</span><button class="row-play" data-a="playOne" tabindex="-1">${icon('play', 16)}</button><span class="eq-anim"><i></i><i></i><i></i></span></span>
+        <span class="c-title"><span class="kind">${it.logo ? `<img class="logo" src="${esc(it.logo)}" alt="" loading="lazy" />` : icon(it.remote ? 'globe' : it.kind === 'video' ? 'video' : 'music', 16)}</span>
           <span class="ellip">${esc(it.title || trackLabel(it))}${it.missing ? ` <em>(${t('notFound')})</em>` : ''}</span></span>
         <span class="c-artist ellip">${esc(it.artist || (it.remote ? (it.group || t('stream')) : ''))}</span>
         <span class="c-duration">${it.duration ? fmtTime(it.duration) : it.remote ? '∞' : ''}</span>
-        <span class="c-x"><button class="icon-btn xs" data-a="rm" title="${t('remove')}">${icon('close', 15)}</button></span>
-      </div>`).join('')}</div>`
-    : `<div class="empty">${icon('music', 44)}<h2>${t('emptyPlaylist')}</h2><p>${t('emptyPlaylistHint')}</p></div>`}`;
+        <span class="c-x"><button class="icon-btn xs" data-a="rm" title="${t('remove')}" tabindex="-1">${icon('close', 15)}</button></span>
+      </div>`;
+  }) : null;
+  vlist = plList;
+  fill();
 
+  const qIn = $('.pl-q', v);
+  if (qIn) qIn.oninput = () => { plFilter.q = qIn.value; fill(); };
+  const gSel = $('.pl-group', v);
+  if (gSel) gSel.onchange = () => { plFilter.group = gSel.value; fill(); };
+
+  const playRow = (row) => playList(listToPlay(), filtered() ? +row.dataset.i : +row.dataset.idx);
   v.onclick = async (e) => {
     const a = e.target.closest('[data-a]')?.dataset.a;
     const row = e.target.closest('.pl-row');
     if (a === 'back') go('playlists');
-    else if (a === 'play') playList(pl.items, 0, { shuffle: false });
-    else if (a === 'shuffle') playList(pl.items, 0, { shuffle: true });
+    else if (a === 'play') playList(listToPlay(), 0, { shuffle: false });
+    else if (a === 'shuffle') playList(listToPlay(), 0, { shuffle: true });
     else if (a === 'export') exportPlaylist(pl);
     else if (a === 'editM3U') { if (await openM3UEditor({ playlist: pl })) renderPlaylist(v); }
     else if (a === 'rename') {
@@ -284,39 +324,60 @@ function renderPlaylist(v) {
       if (await confirmBox(t('confirmDelete', { name: pl.name }))) {
         S.playlists = S.playlists.filter((p) => p !== pl); persist('playlists'); toast(t('deleted')); go('playlists');
       }
-    } else if (row && a === 'rm') { pl.items.splice(+row.dataset.i, 1); persist('playlists'); renderPlaylist(v); }
-    else if (row && (a === 'playOne' || matchMedia('(pointer: coarse)').matches)) playList(pl.items, +row.dataset.i);
+    } else if (row && a === 'rm') { pl.items.splice(+row.dataset.idx, 1); persist('playlists'); fill(); }
+    else if (row && (a === 'playOne' || matchMedia('(pointer: coarse)').matches || e.detail === 0)) playRow(row);
   };
-  v.ondblclick = (e) => { const row = e.target.closest('.pl-row'); if (row && !e.target.closest('button')) playList(pl.items, +row.dataset.i); };
-  // reordenar arrastrando
+  v.ondblclick = (e) => { const row = e.target.closest('.pl-row'); if (row && !e.target.closest('button')) playRow(row); };
+  // reordenar arrastrando (sin filtro activo)
   let from = null;
-  v.ondragstart = (e) => { const r = e.target.closest('.pl-row'); if (r) { from = +r.dataset.i; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(from)); } };
+  v.ondragstart = (e) => { const r = e.target.closest('.pl-row'); if (r && !filtered()) { from = +r.dataset.idx; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(from)); } };
   v.ondragover = (e) => { const r = e.target.closest('.pl-row'); if (r && from != null) { e.preventDefault(); $$('.pl-row', v).forEach((x) => x.classList.toggle('drop-target', x === r)); } };
   v.ondrop = (e) => {
     const r = e.target.closest('.pl-row');
     if (r && from != null) {
       e.preventDefault(); e.stopPropagation();
-      const to = +r.dataset.i;
+      const to = +r.dataset.idx;
       const [x] = pl.items.splice(from, 1); pl.items.splice(to, 0, x);
-      persist('playlists'); renderPlaylist(v);
+      persist('playlists'); fill();
     }
     from = null;
   };
 }
 
+// ------------------------------------------------------------------ abrir URL
+export async function openUrl() {
+  const r = await promptFields(t('openUrlTitle'), [{ name: 'url', label: 'URL', value: '' }, { name: 'name', label: t('playlistName'), value: '' }], t('openUrlHint'));
+  const url = r?.url?.trim();
+  if (!url) return;
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(url)) { toast('URL: http://…  https://…', 3000); return; }
+  const items = [{ src: url, remote: true, title: null, kind: 'video' }];
+  await expandItems(items);
+  let name = r.name?.trim();
+  if (!name) { try { const u = new URL(url); name = items.length > 1 ? (u.host + u.pathname).replace(/\/$/, '') : u.host; } catch { name = t('newPlaylist'); } }
+  if (items.length === 1 && !items[0].title) items[0].title = name;
+  const pl = createPlaylist(name, items);
+  go('playlist', pl.id);
+  if (items.length === 1) playList(pl.items, 0);
+}
+
 // ------------------------------------------------------------------ cola
+const Q_BEFORE = 30, Q_AFTER = 300;
 export function renderQueue() {
   const el = $('#queuePage');
   if (!player.order.length) { el.innerHTML = `<div class="empty small">${icon('queue', 36)}<p>${t('emptyQueue')}</p></div>`; return; }
-  el.innerHTML = `<div class="q-head"><span>${player.order.length} ${t('items')}</span><button class="btn ghost xs" data-a="clear">${t('clear')}</button></div>
-    <div class="q-list">${player.order.map((qi, op) => {
+  // con colas enormes (listas IPTV) se muestra una ventana alrededor de la pista actual
+  const from = Math.max(0, player.pos - Q_BEFORE);
+  const to = Math.min(player.order.length, Math.max(player.pos, 0) + Q_AFTER);
+  el.innerHTML = `<div class="q-head"><span>${player.order.length.toLocaleString()} ${t('items')}</span><button class="btn ghost xs" data-a="clear">${t('clear')}</button></div>
+    <div class="q-list">${from > 0 ? `<div class="q-more">… ${from.toLocaleString()}</div>` : ''}${player.order.slice(from, to).map((qi, k) => {
+      const op = from + k;
       const tr = player.queue[qi];
-      return `<div class="q-row ${op === player.pos ? 'cur' : ''} ${op < player.pos ? 'past' : ''}" data-op="${op}" data-qi="${qi}" draggable="true">
+      return `<div class="q-row ${op === player.pos ? 'cur' : ''} ${op < player.pos ? 'past' : ''}" tabindex="0" data-op="${op}" data-qi="${qi}" draggable="true">
         <span class="q-n">${op === player.pos ? '<span class="eq-anim"><i></i><i></i><i></i></span>' : op + 1}</span>
-        <span class="q-text"><span class="ellip">${esc(trackLabel(tr))}</span><small class="ellip">${esc(tr.artist || '')}</small></span>
+        <span class="q-text"><span class="ellip">${esc(trackLabel(tr))}</span><small class="ellip">${esc(tr.artist || tr.group || '')}</small></span>
         <span class="q-d">${tr.duration ? fmtTime(tr.duration) : ''}</span>
-        <button class="icon-btn xs" data-a="rm">${icon('close', 14)}</button></div>`;
-    }).join('')}</div>`;
+        <button class="icon-btn xs" data-a="rm" tabindex="-1">${icon('close', 14)}</button></div>`;
+    }).join('')}${to < player.order.length ? `<div class="q-more">… ${(player.order.length - to).toLocaleString()}</div>` : ''}</div>`;
   el.onclick = (e) => {
     const a = e.target.closest('[data-a]')?.dataset.a;
     const row = e.target.closest('.q-row');
@@ -324,10 +385,10 @@ export function renderQueue() {
     else if (row && a === 'rm') player.removeFromQueue(+row.dataset.qi);
     else if (row) player.loadAt(+row.dataset.op, { play: true });
   };
-  let from = null;
-  el.ondragstart = (e) => { const r = e.target.closest('.q-row'); if (r) { from = +r.dataset.op; e.dataTransfer.setData('text/plain', 'q'); } };
-  el.ondragover = (e) => { if (from != null && e.target.closest('.q-row')) e.preventDefault(); };
-  el.ondrop = (e) => { const r = e.target.closest('.q-row'); if (r && from != null) { e.preventDefault(); e.stopPropagation(); player.moveInQueue(from, +r.dataset.op); } from = null; };
+  let dragFrom = null;
+  el.ondragstart = (e) => { const r = e.target.closest('.q-row'); if (r) { dragFrom = +r.dataset.op; e.dataTransfer.setData('text/plain', 'q'); } };
+  el.ondragover = (e) => { if (dragFrom != null && e.target.closest('.q-row')) e.preventDefault(); };
+  el.ondrop = (e) => { const r = e.target.closest('.q-row'); if (r && dragFrom != null) { e.preventDefault(); e.stopPropagation(); player.moveInQueue(dragFrom, +r.dataset.op); } dragFrom = null; };
   el.querySelector('.cur')?.scrollIntoView({ block: 'nearest' });
 }
 
@@ -362,6 +423,11 @@ function renderSettings(v) {
       <div class="set-row"><span>${t('speed')}</span><div class="seg" data-k="speed">${[0.5, 0.75, 1, 1.25, 1.5, 2].map((s) => `<button data-val="${s}" class="${st.speed === s ? 'on' : ''}">${s}×</button>`).join('')}</div></div>
       <label class="switch"><input type="checkbox" data-k="resume" ${st.resume ? 'checked' : ''}/><span></span>${t('resume')}</label>
       <label class="switch"><input type="checkbox" data-k="visualizer" ${st.visualizer ? 'checked' : ''}/><span></span>${t('visualizer')}</label>
+    </section>
+    <section class="set-card">
+      <h2>${icon('tv', 20)} ${t('tvMode')}</h2>
+      <p class="sub">${t('tvModeHint')}</p>
+      <div class="seg" data-k="tvMode">${[['auto', t('tvAuto')], ['on', t('tvOn')], ['off', t('tvOff')]].map(([k, l]) => `<button data-val="${k}" class="${(st.tvMode || 'auto') === k ? 'on' : ''}">${l}</button>`).join('')}</div>
     </section>
     <section class="set-card">
       <h2>${icon('list', 20)} ${t('playlistsSection')}</h2>
@@ -400,8 +466,12 @@ function renderSettings(v) {
       if (k === 'speed') player.setSpeed(val);
       if (k === 'lang') { setLang(val); location.reload(); return; }
       if (k === 'lyrics.size') $('#app').dataset.lyricsSize = val;
+      if (k === 'tvMode') { persist('settings'); import('../main.js').then((m) => m.applyTvMode(S.device || {})); }
       persist('settings');
+      const scroll = v.scrollTop;
       renderSettings(v);
+      v.scrollTop = scroll;
+      v.querySelector(`.seg[data-k="${k}"] button[data-val="${raw}"]`)?.focus({ preventScroll: true });
     }
   };
   v.onchange = (e) => {

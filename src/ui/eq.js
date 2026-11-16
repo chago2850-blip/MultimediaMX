@@ -127,8 +127,9 @@ export function renderEq(root, { compact }) {
     slider.addEventListener('wheel', (e) => { e.preventDefault(); setBand(i, (eqState().bands[i] || 0) + (e.deltaY < 0 ? 0.5 : -0.5)); }, { passive: false });
     slider.addEventListener('keydown', (e) => {
       const v = eqState().bands[i] || 0;
-      if (e.key === 'ArrowUp' || e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); setBand(i, v + 0.5); }
-      if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); setBand(i, v - 0.5); }
+      const tv = document.documentElement.classList.contains('tv');
+      if (e.key === 'ArrowUp' || (e.key === 'ArrowRight' && !tv)) { e.preventDefault(); e.stopPropagation(); setBand(i, v + 0.5); }
+      if (e.key === 'ArrowDown' || (e.key === 'ArrowLeft' && !tv)) { e.preventDefault(); e.stopPropagation(); setBand(i, v - 0.5); }
     });
   });
 }

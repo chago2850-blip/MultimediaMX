@@ -27,6 +27,8 @@ const NATIVE_VIDEO = ['h264', 'vp8', 'vp9', 'av1', 'theora'];
 const NATIVE_AUDIO = ['aac', 'mp3', 'opus', 'vorbis', 'flac', 'pcm_s16le', 'pcm_s24le', 'pcm_s32le', 'pcm_f32le', 'pcm_u8'];
 if (process.platform === 'darwin' || process.platform === 'win32') NATIVE_VIDEO.push('hevc');
 
+const NET = (input) => /^https?:\/\//i.test(input) ? ['-user_agent', 'VLC/3.0.21 LibVLC/3.0.21', '-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '5', '-rw_timeout', '15000000'] : [];
+
 const probeCache = new Map();
 
 /** Lee la información de un archivo o URL con `ffmpeg -i` (sin ffprobe). */
@@ -35,7 +37,7 @@ export function probe(input) {
   return new Promise((resolve) => {
     let err = '';
     let done = false;
-    const proc = spawn(ffmpegPath(), ['-hide_banner', '-nostdin', '-i', input], { windowsHide: true });
+    const proc = spawn(ffmpegPath(), ['-hide_banner', '-nostdin', ...NET(input), '-i', input], { windowsHide: true });
     const finish = () => {
       if (done) return; done = true;
       const info = parseProbe(err);
@@ -92,7 +94,7 @@ export function decide(info) {
 
 /** Construye los argumentos de FFmpeg para convertir a MP4 fragmentado (transmitible). */
 export function transcodeArgs(input, { ss = 0, audioOnly = false, vcopy = false, acopy = false, audioTrack = 0 } = {}) {
-  const args = ['-hide_banner', '-nostdin', '-loglevel', 'error'];
+  const args = ['-hide_banner', '-nostdin', '-loglevel', 'error', ...NET(input)];
   if (ss > 0) args.push('-ss', String(ss));
   args.push('-i', input);
   if (audioOnly) {
