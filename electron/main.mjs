@@ -16,6 +16,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { probe, decide, transcodeArgs, extractSubtitle, ffmpegPath, isMediaFile, extOf, PLAYLIST_EXT, AUDIO_EXT, VIDEO_EXT } from './media.mjs';
 import { parseM3U, writeM3U, isUrl } from '../src/core/m3u.js';
+import { listDrives, findMedia } from './drives.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isDev = !!process.env.MMX_DEV_URL;
@@ -208,6 +209,30 @@ function registerIpc() {
     return scanFolder(r.filePaths[0]);
   });
   ipcMain.handle('scan-folder', (_e, dir) => scanFolder(dir));
+  // Unidades conectadas y búsqueda de medios (manual o automática)
+  ipcMain.handle('list-drives', () => listDrives());
+  const scans = new Map();
+  ipcMain.handle('find-media', async (e, { id, roots }) => {
+    const signal = { cancelled: false };
+    scans.set(id, signal);
+    try {
+      return await findMedia((roots || []).filter((r) => typeof r === 'string'), {
+        signal,
+        onProgress: (n, dir) => { if (!e.sender.isDestroyed()) e.sender.send('scan-progress', { id, found: n, dir }); }
+      });
+    } finally { scans.delete(id); }
+  });
+  ipcMain.handle('cancel-scan', (_e, id) => { const s = scans.get(id); if (s) s.cancelled = true; else for (const x of scans.values()) x.cancelled = true; });
+  // Mueve archivos a la papelera del sistema (se pueden recuperar)
+  ipcMain.handle('trash-files', async (_e, paths) => {
+    const ok = [];
+    const failed = [];
+    for (const p of paths || []) {
+      if (typeof p !== 'string' || isUrl(p) || !path.isAbsolute(p)) { failed.push(p); continue; }
+      try { await shell.trashItem(p); ok.push(p); } catch { if (!fs.existsSync(p)) ok.push(p); else failed.push(p); }
+    }
+    return { ok, failed };
+  });
   ipcMain.handle('open-playlist', async () => {
     const r = await dialog.showOpenDialog(win, { properties: ['openFile', 'multiSelections'], filters: [{ name: 'Listas M3U', extensions: PLAYLIST_EXT }] });
     if (r.canceled) return [];

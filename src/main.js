@@ -157,6 +157,75 @@ export async function scanDevice() {
   } finally { S.scanning = false; refreshView(); }
 }
 
+/** Mueve archivos locales a la papelera del sistema y los quita de la biblioteca. */
+export async function trashTracks(tracks) {
+  const local = tracks.filter((x) => !x.remote && !x.ephemeral);
+  if (!local.length || !platform.canTrash) return { ok: [], failed: [] };
+  if (player.track && local.some((x) => x.src === player.track.src)) player.halt();
+  const r = await platform.trash(local.map((x) => x.src));
+  const okSet = new Set(r.ok);
+  removeFromLibrary(local.filter((x) => okSet.has(x.src)).map((x) => x.id));
+  return r;
+}
+
+// ------------------------------------------------------------------ búsqueda en unidades
+let scanToken = 0;
+export const drivesState = { known: null, last: [] };
+
+/**
+ * Busca audio y video en las unidades conectadas.
+ * roots: rutas a recorrer (en Android '*mediastore' añade el índice de medios del sistema).
+ */
+export async function searchDrives(roots, { auto = false } = {}) {
+  if (!roots?.length || !platform.canScanDrives) return [];
+  if (S.scanning) { if (!auto) toast(t('scanBusy')); return []; }
+  const my = ++scanToken;
+  S.scanning = true; S.scanFound = 0; refreshView();
+  if (!auto) toast(t('scanStarted'), 1800);
+  try {
+    const r = await platform.findMedia(roots, (n) => { if (my === scanToken) { S.scanFound = n; refreshView(); } });
+    if (r?.denied) { if (!auto) toast(t('permissionDenied'), 4000); return []; }
+    const added = await addEntries(r || [], { quiet: true });
+    if (added.length || !auto) toast(t('scanDone', { n: added.length, total: (r || []).length }), 4000);
+    return added;
+  } catch {
+    if (!auto) toast(t('failed'), 3000);
+    return [];
+  } finally {
+    if (my === scanToken) { S.scanning = false; S.scanFound = 0; refreshView(); }
+  }
+}
+
+export function cancelSearch() { platform.cancelScan?.(); }
+
+/** Raíces predeterminadas: carpetas de medios del usuario y unidades conectadas. */
+export function defaultRoots(drives) {
+  const roots = drives.map((d) => d.path);
+  return platform.name === 'android' ? ['*mediastore', ...roots] : roots;
+}
+
+/** Búsqueda automática: al iniciar y cada vez que se conecta una unidad. */
+function initAutoScan() {
+  if (!platform.canScanDrives) return;
+  const check = async (first = false) => {
+    if (S.settings.autoScan === false) { drivesState.known = null; return; }
+    const drives = await platform.listDrives().catch(() => []);
+    drivesState.last = drives;
+    const prev = drivesState.known;
+    drivesState.known = new Set(drives.map((d) => d.path));
+    if (first || !prev) return searchDrives(defaultRoots(drives), { auto: true });
+    const fresh = drives.filter((d) => !prev.has(d.path));
+    if (fresh.length) {
+      toast(t('driveConnected', { name: fresh.map((d) => d.label).join(', ') }), 3500);
+      await searchDrives(fresh.map((d) => d.path), { auto: true });
+    }
+  };
+  setTimeout(() => check(true), 2500);
+  if (platform.name === 'desktop') setInterval(() => { if (!S.scanning) check(); }, 7000);
+  platform.onDrivesChanged(() => setTimeout(() => check(), 1500));
+  if (platform.name === 'android') import('@capacitor/app').then(({ App }) => App.addListener('resume', () => check())).catch(() => {});
+}
+
 // ------------------------------------------------------------------ listas
 export function createPlaylist(name, items = []) {
   const pl = { id: uid(), name, items, createdAt: Date.now() };
@@ -166,7 +235,7 @@ export function createPlaylist(name, items = []) {
 }
 
 export function playlistItemFromTrack(tr) {
-  return { src: tr.src, title: tr.title, artist: tr.artist, duration: tr.duration, kind: tr.kind, remote: tr.remote, ephemeral: tr.ephemeral };
+  return { src: tr.src, title: tr.title, name: tr.name || null, artist: tr.artist, duration: tr.duration, kind: tr.kind, remote: tr.remote, ephemeral: tr.ephemeral };
 }
 
 export async function importPlaylists() {
@@ -547,25 +616,92 @@ function bumpVolume(d) {
 function initDrop() {
   let depth = 0;
   const drop = $('#drop');
-  drop.firstElementChild.innerHTML = `${icon('import', 42)}<span>${t('dropHere')}</span>`;
-  addEventListener('dragenter', (e) => { if (e.dataTransfer?.types?.includes('Files')) { depth++; drop.classList.add('show'); } });
-  addEventListener('dragleave', () => { depth = Math.max(0, depth - 1); if (!depth) drop.classList.remove('show'); });
-  addEventListener('dragover', (e) => { if (e.dataTransfer?.types?.includes('Files')) e.preventDefault(); });
+  const hasFiles = (e) => !!e.dataTransfer?.types?.includes('Files');
+  // destino: una lista abierta, la tarjeta de una lista o la biblioteca
+  const targetOf = (e) => {
+    const card = e.target?.closest?.('.pl-card');
+    if (card) return S.playlists.find((p) => p.id === card.dataset.id) || null;
+    if (S.view === 'playlist' && !S.stageOpen) return S.playlists.find((p) => p.id === S.playlistId) || null;
+    return null;
+  };
+  const label = (pl) => {
+    drop.firstElementChild.innerHTML = `${icon(pl ? 'list' : 'import', 42)}<span>${pl ? t('dropToPlaylist', { name: pl.name }) : t('dropHere')}</span>`;
+  };
+  const mark = (card) => $$('.pl-card.drop-on').forEach((c) => c.classList.toggle('drop-on', c === card));
+  addEventListener('dragenter', (e) => { if (hasFiles(e)) { depth++; drop.classList.add('show'); label(targetOf(e)); } });
+  addEventListener('dragleave', () => { depth = Math.max(0, depth - 1); if (!depth) { drop.classList.remove('show'); mark(null); } });
+  addEventListener('dragover', (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    const card = e.target?.closest?.('.pl-card') || null;
+    mark(card);
+    label(targetOf(e));
+    // posición de inserción dentro de una lista abierta
+    if (S.view === 'playlist') { const r = e.target?.closest?.('.pl-row'); $$('.pl-row.drop-target').forEach((x) => x.classList.toggle('drop-target', x === r)); }
+  });
   addEventListener('drop', async (e) => {
     if (!e.dataTransfer?.files?.length) return;
     e.preventDefault();
-    depth = 0; drop.classList.remove('show');
+    depth = 0; drop.classList.remove('show'); mark(null);
+    const target = targetOf(e);
+    const row = target && S.view === 'playlist' ? e.target?.closest?.('.pl-row') : null;
+    const at = row ? +row.dataset.idx : null;
+    $$('.pl-row.drop-target').forEach((x) => x.classList.remove('drop-target'));
     const files = [...e.dataTransfer.files];
     if (platform.name === 'desktop') {
       const paths = files.map((f) => platform.pathForFile(f)).filter(Boolean);
-      await openPaths(paths, { play: false });
+      if (target) await addPathsToPlaylist(target, paths, at);
+      else await openPaths(paths, { play: false });
     } else {
       const lists = files.filter((f) => /\.m3u8?$/i.test(f.name));
-      const media = files.filter((f) => !/\.m3u8?$/i.test(f.name));
-      if (media.length) await addEntries(platform.adoptFiles(media));
+      const media = files.filter((f) => !/\.m3u8?$/i.test(f.name) && (kindOf(f.name) || /^(audio|video)\//.test(f.type)));
+      if (media.length) {
+        const entries = platform.adoptFiles(media);
+        await addEntries(entries, { quiet: !!target });
+        if (target) appendToPlaylist(target, entries.map((x) => findBySrc(x.src)).filter(Boolean).map(playlistItemFromTrack), at);
+      }
       if (lists.length) toast(t('importM3U'));
     }
   });
+}
+
+/** Inserta elementos en una lista (al final o en la posición indicada). */
+export function appendToPlaylist(pl, items, at = null) {
+  if (!items.length) { toast(t('nothingToAdd'), 2500); return 0; }
+  if (at == null || at < 0 || at > pl.items.length) pl.items.push(...items); else pl.items.splice(at, 0, ...items);
+  persist('playlists');
+  toast(`${t('addedN', { n: items.length })} → ${pl.name}`);
+  if (S.view === 'playlist' && S.playlistId === pl.id) renderView(); else refreshView();
+  return items.length;
+}
+
+/** Archivos, carpetas y listas .m3u soltados sobre una lista (escritorio). */
+async function addPathsToPlaylist(pl, paths, at = null) {
+  const items = [];
+  const media = [];
+  for (const p of paths) {
+    const e = extOf(p);
+    if (e === 'm3u' || e === 'm3u8') {
+      const l = await window.mmx.readPlaylist(p);
+      items.push(...l.items.map((it) => ({ src: it.location, title: it.title, artist: it.artist, duration: it.duration, kind: kindOf(it.location) || 'audio', remote: it.remote, missing: !it.exists })));
+    } else if (kindOf(p)) media.push(p);
+    else {
+      S.scanning = true; refreshView();
+      try { media.push(...await window.mmx.scanFolder(p)); } finally { S.scanning = false; }
+    }
+  }
+  await addEntries(media.map((src) => ({ src })), { quiet: true });
+  const tracks = media.map((src) => findBySrc(src)).filter(Boolean).map(playlistItemFromTrack);
+  return appendToPlaylist(pl, [...tracks, ...items], at);
+}
+
+/** Elegir archivos (o una carpeta) y agregarlos directamente a una lista. */
+export async function pickIntoPlaylist(pl, folder = false) {
+  const entries = folder ? await platform.pickFolder() : await platform.pickMedia();
+  if (!entries?.length) return;
+  await addEntries(entries, { quiet: true });
+  appendToPlaylist(pl, entries.map((x) => findBySrc(x.src)).filter(Boolean).map(playlistItemFromTrack));
 }
 
 /** Abre rutas de escritorio: archivos, carpetas y listas. */
@@ -710,6 +846,7 @@ async function boot() {
   initKeys();
   initDrop();
   initMediaSession();
+  initAutoScan();
   renderNav();
   renderBar();
   renderBarTrack();
@@ -742,4 +879,4 @@ async function boot() {
 boot();
 
 // Acceso para pruebas automatizadas y depuración
-window.__mmx = { S, player, audio, addEntries, playList, go, setSkin, openStage, setPanel, importPlaylists, createPlaylist, expandItems, applyTvMode, goBack, isTV, tvnav };
+window.__mmx = { S, player, audio, addEntries, playList, go, setSkin, openStage, setPanel, importPlaylists, createPlaylist, expandItems, applyTvMode, goBack, isTV, tvnav, searchDrives, addPathsToPlaylist, appendToPlaylist, trashTracks };

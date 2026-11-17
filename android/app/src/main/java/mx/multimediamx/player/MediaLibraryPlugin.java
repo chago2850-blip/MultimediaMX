@@ -10,8 +10,15 @@ package mx.multimediamx.player;
 
 import android.Manifest;
 import android.app.UiModeManager;
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.os.Environment;
+import android.os.storage.StorageManager;
+import android.os.storage.StorageVolume;
+import androidx.core.content.ContextCompat;
 import android.content.res.Configuration;
 import android.view.WindowManager;
 import android.database.Cursor;
@@ -143,6 +150,150 @@ public class MediaLibraryPlugin extends Plugin {
                 out.put(o);
             }
         }
+    }
+
+    // ------------------------------------------------------------------ unidades (memoria interna, microSD, USB)
+    private static final String[] AUDIO_EXT = { "mp3", "flac", "ogg", "oga", "opus", "m4a", "m4b", "aac", "wav", "wma", "ape", "aif", "aiff", "alac", "mka", "ac3", "dts", "wv", "amr", "mp2", "mid", "midi", "weba" };
+    private static final String[] VIDEO_EXT = { "mp4", "m4v", "mkv", "webm", "avi", "mov", "wmv", "asf", "flv", "mpg", "mpeg", "ts", "m2ts", "mts", "vob", "3gp", "ogv", "rmvb", "divx" };
+    private BroadcastReceiver mountReceiver;
+
+    @Override
+    public void load() {
+        mountReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                JSObject o = new JSObject();
+                o.put("action", intent.getAction());
+                Uri d = intent.getData();
+                if (d != null && d.getPath() != null) o.put("path", d.getPath());
+                notifyListeners("volumesChanged", o);
+            }
+        };
+        IntentFilter f = new IntentFilter();
+        f.addAction(Intent.ACTION_MEDIA_MOUNTED);
+        f.addAction(Intent.ACTION_MEDIA_UNMOUNTED);
+        f.addAction(Intent.ACTION_MEDIA_REMOVED);
+        f.addDataScheme("file");
+        try { ContextCompat.registerReceiver(getContext(), mountReceiver, f, ContextCompat.RECEIVER_EXPORTED); } catch (Exception ignored) { }
+    }
+
+    private static String volumePath(Context ctx, StorageVolume v) {
+        if (Build.VERSION.SDK_INT >= 30) {
+            File d = v.getDirectory();
+            return d != null ? d.getAbsolutePath() : null;
+        }
+        try {
+            Object p = StorageVolume.class.getMethod("getPath").invoke(v);
+            return p != null ? p.toString() : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    @PluginMethod
+    public void volumes(PluginCall call) {
+        Context ctx = getContext();
+        JSArray arr = new JSArray();
+        java.util.HashSet<String> seen = new java.util.HashSet<>();
+        try {
+            StorageManager sm = (StorageManager) ctx.getSystemService(Context.STORAGE_SERVICE);
+            if (sm != null) {
+                for (StorageVolume v : sm.getStorageVolumes()) {
+                    if (!Environment.MEDIA_MOUNTED.equals(v.getState()) && !Environment.MEDIA_MOUNTED_READ_ONLY.equals(v.getState())) continue;
+                    String p = volumePath(ctx, v);
+                    if (p == null || !seen.add(p)) continue;
+                    JSObject o = new JSObject();
+                    o.put("path", p);
+                    o.put("label", v.getDescription(ctx));
+                    o.put("removable", v.isRemovable());
+                    o.put("primary", v.isPrimary());
+                    arr.put(o);
+                }
+            }
+        } catch (Exception ignored) { }
+        // Respaldo: raíces deducidas de las carpetas privadas de la app en cada volumen
+        File[] dirs = ctx.getExternalFilesDirs(null);
+        if (dirs != null) {
+            for (File d : dirs) {
+                if (d == null) continue;
+                String p = d.getAbsolutePath();
+                int i = p.indexOf("/Android/data/");
+                if (i <= 0) continue;
+                p = p.substring(0, i);
+                if (!seen.add(p)) continue;
+                JSObject o = new JSObject();
+                o.put("path", p);
+                o.put("label", p.equals(Environment.getExternalStorageDirectory().getAbsolutePath()) ? "Almacenamiento interno" : new File(p).getName());
+                o.put("removable", !p.equals(Environment.getExternalStorageDirectory().getAbsolutePath()));
+                o.put("primary", p.equals(Environment.getExternalStorageDirectory().getAbsolutePath()));
+                arr.put(o);
+            }
+        }
+        JSObject ret = new JSObject();
+        ret.put("volumes", arr);
+        call.resolve(ret);
+    }
+
+    private static String extension(String name) {
+        int i = name.lastIndexOf('.');
+        return i < 0 ? "" : name.substring(i + 1).toLowerCase(Locale.ROOT);
+    }
+
+    private static boolean in(String[] list, String e) {
+        for (String x : list) if (x.equals(e)) return true;
+        return false;
+    }
+
+    private void walk(File dir, int depth, JSArray out, java.util.HashSet<String> seen, int[] count) {
+        if (depth > 20 || count[0] > 50000) return;
+        String key;
+        try { key = dir.getCanonicalPath(); } catch (IOException e) { key = dir.getAbsolutePath(); }
+        if (!seen.add(key)) return;
+        File[] list = dir.listFiles();
+        if (list == null) return;
+        for (File f : list) {
+            String name = f.getName();
+            if (name.startsWith(".")) continue;
+            if (f.isDirectory()) {
+                if (depth == 0 && (name.equals("Android") || name.equals("LOST.DIR"))) continue;
+                walk(f, depth + 1, out, seen, count);
+            } else {
+                String e = extension(name);
+                boolean video = in(VIDEO_EXT, e);
+                boolean audio = !video && in(AUDIO_EXT, e);
+                if (!video && !audio) continue;
+                if (audio && f.length() < 48 * 1024) continue; // sonidos del sistema
+                JSObject o = new JSObject();
+                o.put("path", f.getAbsolutePath());
+                o.put("isVideo", video);
+                out.put(o);
+                count[0]++;
+                if (count[0] % 200 == 0) {
+                    JSObject p = new JSObject();
+                    p.put("found", count[0]);
+                    notifyListeners("scanProgress", p);
+                }
+            }
+        }
+    }
+
+    @PluginMethod
+    public void scanFolders(PluginCall call) {
+        final JSArray paths = call.getArray("paths", new JSArray());
+        pool.execute(() -> {
+            JSArray items = new JSArray();
+            java.util.HashSet<String> seen = new java.util.HashSet<>();
+            int[] count = { 0 };
+            try {
+                for (int i = 0; i < paths.length(); i++) {
+                    File root = new File(paths.getString(i));
+                    if (root.isDirectory()) walk(root, 0, items, seen, count);
+                }
+            } catch (Exception ignored) { }
+            JSObject ret = new JSObject();
+            ret.put("items", items);
+            call.resolve(ret);
+        });
     }
 
     // ------------------------------------------------------------------ dispositivo
@@ -466,6 +617,7 @@ public class MediaLibraryPlugin extends Plugin {
     @Override
     protected void handleOnDestroy() {
         try { if (server != null) server.close(); } catch (IOException ignored) { }
+        try { if (mountReceiver != null) getContext().unregisterReceiver(mountReceiver); } catch (Exception ignored) { }
         pool.shutdownNow();
         super.handleOnDestroy();
     }

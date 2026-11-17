@@ -52,5 +52,6 @@ export const DEFAULT_SETTINGS = {
   resume: true,
   visualizer: true,
   relativePaths: true,
+  autoScan: true, // buscar audio y video al iniciar y al conectar una unidad
   tvMode: 'auto' // auto | on | off
 };

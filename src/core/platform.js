@@ -83,6 +83,8 @@ async function parseStreamMeta(url) {
 // ------------------------------------------------------------------ Escritorio
 function desktop() {
   const m = window.mmx;
+  const scanCb = new Map();
+  m.onScanProgress?.((p) => scanCb.get(p.id)?.(p.found, p.dir));
   return {
     name: 'desktop',
     canTranscode: true,
@@ -91,6 +93,18 @@ function desktop() {
     async pickMedia() { return (await m.openFiles()).map((p) => ({ src: p })); },
     async pickFolder() { return (await m.openFolder()).map((p) => ({ src: p })); },
     async scanDevice() { return null; },
+    canScanDrives: true,
+    canTrash: true,
+    async listDrives() { return m.listDrives(); },
+    async findMedia(roots, onProgress) {
+      const id = Math.random().toString(36).slice(2);
+      scanCb.set(id, onProgress);
+      try { return (await m.findMedia({ id, roots })).map((p) => ({ src: p })); } finally { scanCb.delete(id); }
+    },
+    cancelScan: () => m.cancelScan(),
+    trash: (paths) => m.trashFiles(paths),
+    onDrivesChanged() {},
+    scanFolderPath: async (p) => (await m.scanFolder(p)).map((src) => ({ src })),
     async importPlaylists() { return m.openPlaylist(); },
     async readPlaylistPath(p) { return m.readPlaylist(p); },
     async savePlaylist(name, items, relative) { return m.savePlaylist({ name, items, relative }); },
@@ -158,6 +172,30 @@ function web(cap) {
         album: it.album || null, duration: it.duration ? it.duration / 1000 : null, kind: it.isVideo ? 'video' : 'audio'
       }));
     },
+    canScanDrives: native,
+    canTrash: false,
+    async listDrives() {
+      if (!native) return [];
+      const r = await MediaLibrary.volumes().catch(() => ({ volumes: [] }));
+      return (r.volumes || []).map((v) => ({ path: v.path, label: v.label || v.path, type: 'drive', removable: !!v.removable, primary: !!v.primary }));
+    },
+    async findMedia(roots, onProgress) {
+      if (!native) return [];
+      const perm = await MediaLibrary.requestAccess().catch(() => null);
+      if (!perm || (perm.audio !== 'granted' && perm.video !== 'granted')) return { denied: true };
+      const h = onProgress ? await MediaLibrary.addListener('scanProgress', (p) => onProgress(p.found, '')) : null;
+      try {
+        // 1) índice de medios del sistema (rápido, con etiquetas) y 2) recorrido de las unidades elegidas
+        const idx = roots.includes('*mediastore') ? await this.scanDevice() : [];
+        const r = await MediaLibrary.scanFolders({ paths: roots.filter((x) => x !== '*mediastore') });
+        const walked = (r.items || []).map((it) => ({ src: it.path, kind: it.isVideo ? 'video' : 'audio' }));
+        return [...(Array.isArray(idx) ? idx : []), ...walked];
+      } finally { h?.remove(); }
+    },
+    async cancelScan() {},
+    async trash() { return { ok: [], failed: [] }; },
+    onDrivesChanged(cb) { if (native) MediaLibrary.addListener('volumesChanged', cb).catch?.(() => {}); },
+    scanFolderPath: null,
     async importPlaylists() {
       const files = await pickFiles('.m3u,.m3u8,audio/x-mpegurl,application/vnd.apple.mpegurl,audio/mpegurl');
       const out = [];
